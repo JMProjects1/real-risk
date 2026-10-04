@@ -36,7 +36,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
-__version__ = "1.1.1"
+__version__ = "1.1.2"
 
 NETWORKS = {
     "mainnet": "https://indexer.api.real.xyz",
@@ -830,16 +830,17 @@ def account_id_problem(value: Any) -> Optional[str]:
     if secret:
         return "looks like a private key or recovery phrase. Remove it from your config now and use your public Account ID"
     if not HEX_ID_RE.match(value.strip()):
-        return "isn't a valid Account ID (it should be 0x followed by 64 letters and numbers)"
+        return "isn't in the right format (it should be 0x followed by 64 letters and numbers)"
     return None
 
 
-def validate_config(cfg: Dict[str, Any]) -> None:
-    for i, entry in enumerate(cfg.get("accounts") or [], 1):
+def validate_config(cfg: Dict[str, Any], check_accounts: bool = True) -> None:
+    for i, entry in enumerate((cfg.get("accounts") or []) if check_accounts else [], 1):
         aid = entry if isinstance(entry, str) else entry.get("id") if isinstance(entry, dict) else None
         problem = account_id_problem(aid)
         if problem:
-            raise ValueError(f"Account {i} in your settings: the ID {problem}.")
+            where = "" if len(cfg["accounts"]) == 1 else f" #{i}"
+            raise ValueError(f"Account ID{where} {problem}. Check the --account you typed, or the accounts in config.json.")
     t = cfg["thresholds_pct"]
     if not (t["warning"] > t["danger"] > t["critical"] > 0):
         raise ValueError("thresholds_pct must satisfy warning > danger > critical > 0")
@@ -876,7 +877,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.webhook:
         cfg["discord_webhook_url"] = args.webhook
     try:
-        validate_config(cfg)
+        validate_config(cfg, check_accounts=not args.find_accounts)   # --find-accounts is how you fix a wrong ID
     except ValueError as e:
         print(f"Config error: {e}", file=sys.stderr)
         return 2

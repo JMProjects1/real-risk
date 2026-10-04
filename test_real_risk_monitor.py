@@ -200,7 +200,7 @@ class MonitorTests(unittest.TestCase):
     def test_configured_ids_are_checked(self):
         base = rrm.load_config(None)
         for bad, msg in [({"label": "x"}, "missing"), ("iotaprivkey1qqq", "private key"),
-                         ("0x1234", "valid Account ID"), ("word " * 12, "recovery phrase")]:
+                         ("0x1234", "right format"), ("word " * 12, "recovery phrase")]:
             cfg = dict(base, accounts=[bad])
             with self.assertRaises(ValueError) as ctx:
                 rrm.validate_config(cfg)

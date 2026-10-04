@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.2
+
+- A bad account ID no longer blocks `--find-accounts`, and the error points to both `--account` and `config.json`.
+- The risk gauge greys out along with the figures while data is delayed.
+
 ## 1.1.1
 
 Fixes from a re-check of 1.1.0.
