@@ -24,7 +24,9 @@ import argparse
 import json
 import logging
 import os
+import ssl
 import sys
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -33,7 +35,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 NETWORKS = {
     "mainnet": "https://indexer.api.real.xyz",
@@ -83,9 +85,10 @@ def dec(value: Any) -> Optional[Decimal]:
     if value is None:
         return None
     try:
-        return Decimal(str(value))
+        d = Decimal(str(value))
     except (InvalidOperation, ValueError):
         return None
+    return d if d.is_finite() else None
 
 
 def fmt_price(value: Optional[Decimal]) -> str:
@@ -180,11 +183,28 @@ def next_tier(
 # ---------------------------------------------------------------------------
 
 class ApiError(Exception):
-    pass
+    def __init__(self, message: str, status: Optional[int] = None, kind: str = "error"):
+        super().__init__(message)
+        self.status = status
+        self.kind = kind  # "not_found", "certificate", "rate_limited", "network", "error"
+
+
+CERT_HELP = ("Python can't verify REAL's security certificate. On a Mac with Python from python.org, "
+             "open Finder > Applications > Python 3.x and double-click 'Install Certificates.command', "
+             "then start the dashboard again.")
+
+
+def _is_cert_error(err: BaseException) -> bool:
+    reason = getattr(err, "reason", err)
+    return isinstance(reason, ssl.SSLCertVerificationError) or "CERTIFICATE_VERIFY_FAILED" in str(reason)
 
 
 class RealIndexer:
     """Minimal read-only client for the REAL indexer REST API."""
+
+    # One pause shared by every client and thread: when REAL says "slow down", everyone waits.
+    _cooldown_until = 0.0
+    _cooldown_lock = threading.Lock()
 
     def __init__(self, network: str = "mainnet", base_url: Optional[str] = None, timeout: float = 15.0):
         if base_url is None:
@@ -194,11 +214,24 @@ class RealIndexer:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
+    @classmethod
+    def _wait_for_cooldown(cls) -> None:
+        with cls._cooldown_lock:
+            wait = cls._cooldown_until - time.time()
+        if wait > 0:
+            time.sleep(min(wait, 60))
+
+    @classmethod
+    def _set_cooldown(cls, seconds: float) -> None:
+        with cls._cooldown_lock:
+            cls._cooldown_until = max(cls._cooldown_until, time.time() + seconds)
+
     def _get(self, path: str, params: Optional[List[Tuple[str, str]]] = None, retries: int = 3) -> Any:
         query = urllib.parse.urlencode(params or [], safe="[],")
         url = f"{self.base_url}{path}" + (f"?{query}" if query else "")
         delay = 1.0
         for attempt in range(retries + 1):
+            self._wait_for_cooldown()
             req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout) as resp:
@@ -206,20 +239,27 @@ class RealIndexer:
             except urllib.error.HTTPError as e:
                 body = e.read().decode("utf-8", "replace")[:300]
                 if e.code == 429 or e.code >= 500:
+                    retry_after = e.headers.get("Retry-After") if e.headers else None
+                    wait = float(retry_after) if retry_after and retry_after.replace(".", "").isdigit() else delay
+                    if e.code == 429:
+                        self._set_cooldown(min(wait, 60))
                     if attempt < retries:
-                        retry_after = e.headers.get("Retry-After") if e.headers else None
-                        wait = float(retry_after) if retry_after and retry_after.replace(".", "").isdigit() else delay
                         log.debug("HTTP %s on %s, retrying in %.1fs", e.code, path, wait)
                         time.sleep(min(wait, 30))
                         delay *= 2
                         continue
-                raise ApiError(f"HTTP {e.code} for {path}: {body}") from None
+                    kind = "rate_limited" if e.code == 429 else "error"
+                    raise ApiError(f"HTTP {e.code} for {path}: {body}", e.code, kind) from None
+                raise ApiError(f"HTTP {e.code} for {path}: {body}", e.code,
+                               "not_found" if e.code == 404 else "error") from None
             except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+                if _is_cert_error(e):
+                    raise ApiError(CERT_HELP, kind="certificate") from None
                 if attempt < retries:
                     time.sleep(delay)
                     delay *= 2
                     continue
-                raise ApiError(f"Network error for {path}: {e}") from None
+                raise ApiError(f"Network error for {path}: {e}", kind="network") from None
             except json.JSONDecodeError as e:
                 raise ApiError(f"Bad JSON from {path}: {e}") from None
         raise ApiError(f"Gave up on {path}")
@@ -424,6 +464,8 @@ class RiskMonitor:
         self.first_poll_done = False
         self.api_failing_since: Optional[float] = None
         self.api_down_alerted = False
+        self.last_api_error: Optional[ApiError] = None
+        self.watch_liquidations = True  # the dashboard turns this off: it doesn't send alerts
         self.last_status_s = 0.0
         self.last_views: List[PositionView] = []
 
@@ -511,7 +553,7 @@ class RiskMonitor:
         try:
             self.refresh_symbols()
             raw = self.api.positions_live(self.accounts.keys())
-            liquidations = self.api.recent_liquidations(self.accounts.keys())
+            liquidations = self.api.recent_liquidations(self.accounts.keys()) if self.watch_liquidations else []
         except ApiError as e:
             self.on_api_failure(e)
             return
@@ -521,7 +563,7 @@ class RiskMonitor:
         current = {v.key: v for v in views}
 
         new_liqs = self.check_liquidations(liquidations)
-        liquidated_keys = {(liq["account_id"], pos.get("market_id")) for liq in new_liqs for pos in liq.get("positions") or []}
+        liquidated_keys = {(liq.get("account_id", ""), pos.get("market_id")) for liq in new_liqs for pos in liq.get("positions") or []}
 
         # Positions that disappeared.
         for key in list(self.states):
@@ -635,6 +677,7 @@ class RiskMonitor:
         now = self.clock()
         if self.api_failing_since is None:
             self.api_failing_since = now
+        self.last_api_error = err if isinstance(err, ApiError) else ApiError(str(err))
         log.warning("API error: %s", err)
         down_for = now - self.api_failing_since
         if not self.api_down_alerted and down_for >= self.cfg["api_down_alert_minutes"] * 60:
@@ -649,6 +692,7 @@ class RiskMonitor:
             self.notify(Alert("system", "Monitor reconnected", [f"API was unreachable for about {down:.0f} min."]))
         self.api_failing_since = None
         self.api_down_alerted = False
+        self.last_api_error = None
 
     # -- reporting -----------------------------------------------------------
 
@@ -657,7 +701,7 @@ class RiskMonitor:
             return "No open positions."
         rows = [("Account", "Market", "Side", "Size", "Mark", "Liq.", "Distance", "uPnL", "Tier")]
         for v in sorted(views, key=lambda x: (x.distance if x.distance is not None else 1e9)):
-            tier = "stale" if v.stale_price else self.states.get(v.key, PositionState()).tier
+            tier = "stale" if v.stale_price else "unknown" if v.distance is None else self.states.get(v.key, PositionState()).tier
             rows.append((self.label(v.account_id), v.symbol, v.direction, str(v.size), fmt_price(v.mark),
                          fmt_price(v.liq) if v.liq and v.liq > 0 else "none", fmt_pct(v.distance),
                          fmt_money(v.upnl), tier))
@@ -726,8 +770,14 @@ class RiskMonitor:
 def load_config(path: Optional[str]) -> Dict[str, Any]:
     cfg = json.loads(json.dumps(DEFAULT_CONFIG))  # deep copy
     if path:
-        with open(path, "r", encoding="utf-8") as fh:
-            user = json.load(fh)
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                user = json.load(fh)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"{os.path.basename(path)} has a typo at line {e.lineno}, column {e.colno} ({e.msg}). "
+                             "Check for a missing or extra comma, quote or bracket near there.") from None
+        if not isinstance(user, dict):
+            raise ValueError(f"{os.path.basename(path)} should contain a JSON object, like config.example.json.")
         for k, v in user.items():
             if k.startswith("_"):
                 continue
@@ -766,7 +816,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO,
                         format="%(asctime)s %(levelname)s %(message)s")
 
-    cfg = load_config(args.config)
+    try:
+        cfg = load_config(args.config)
+    except (ValueError, OSError) as e:
+        print(f"Config error: {e}", file=sys.stderr)
+        return 2
     if args.account:
         cfg["accounts"] = args.account
     if args.network:

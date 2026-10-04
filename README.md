@@ -10,8 +10,9 @@ A free, open-source risk dashboard for traders on the [REAL](https://real.xyz) p
 
 - **Read-only.** It only reads REAL's public data API. It can't place orders, move funds or touch your wallet.
 - **No private key.** It only needs your public Account ID. Never paste your seed phrase or private key into this or any other tool.
-- **Runs on your computer.** The dashboard is served from your own machine at `127.0.0.1` and can't be opened by anyone else. Nothing is sent anywhere except requests to REAL's API (and Google Fonts for the typeface).
-- **Small and readable.** Two Python files and one HTML page, using only Python's standard library. Read them before you run them.
+- **Runs on your computer.** The dashboard is served from your own machine at `127.0.0.1` and can't be opened by anyone else. It only talks to REAL's public API; fonts and everything else ship with it.
+- **Small and readable.** A few Python and JavaScript files using only Python's standard library. Read them before you run them.
+- **Only download it from this page.** If someone sends you a copy elsewhere, or a version that asks for your private key or recovery phrase, it isn't this tool.
 
 ## What's in it
 
@@ -30,8 +31,8 @@ A free, open-source risk dashboard for traders on the [REAL](https://real.xyz) p
 
 **Market**
 - Mark price, 24h change, range and volume, open interest, funding rate and countdown to the next funding.
-- **Liquidation map.** Every minute it scans all open positions on REAL and shows how much would be force-closed at each price level, plus a running total as price moves away. Your own liquidation price is marked on it. Only totals are shown; no account is identified.
-- Order book depth, and what a market order of a given size would cost you in slippage plus fees.
+- **Liquidation map.** While the tab is open, it scans all open positions on REAL every minute and shows REAL's estimated liquidation prices grouped by price level, plus a running total as price moves away. Your own liquidation price is marked on it. Only totals are shown; no account is identified.
+- Order book depth, and what a market order of a given size (in USDT) would cost you in slippage plus fees.
 - Largest liquidation levels and recent liquidations.
 
 ![Market tab](docs/market.png)
@@ -40,22 +41,39 @@ A free, open-source risk dashboard for traders on the [REAL](https://real.xyz) p
 
 ## Get started
 
-You need **Python 3.9 or newer**. Check with `python --version` (Windows) or `python3 --version` (Mac/Linux). If you don't have it, install it from [python.org](https://www.python.org/downloads/). On Windows, tick **Add Python to PATH** during install.
+### Windows
 
-1. On this page, click **Code**, then **Download ZIP**, and unzip it.
-2. Start the dashboard:
-   - **Windows:** open the unzipped folder and double-click `start-dashboard.bat`.
-   - **Mac/Linux:** open a terminal in the folder and run `python3 dashboard.py`.
-3. Paste your **Account ID** when asked. Find it on REAL under **Settings → Account → Account ID** (not your wallet address). It's saved in `config.json` so you're only asked once.
-4. Your browser opens the dashboard at http://127.0.0.1:8787. Keep the black window open while you use it; closing it stops the dashboard.
+1. **Install Python** (once). Go to [python.org/downloads](https://www.python.org/downloads/) and install it with the **Python install manager**, accepting the defaults. If it asks whether to add Python to your PATH, say yes.
+2. **Download the dashboard.** On this page click **Code**, then **Download ZIP**.
+3. **Extract it.** In your Downloads folder, right-click the ZIP and choose **Extract All**. Don't run anything from inside the ZIP itself.
+4. **Start it.** Open the extracted folder and double-click `start-dashboard.bat`. If Windows shows "Windows protected your PC", click **More info**, then **Run anyway**. (It appears for any downloaded script that isn't from a known publisher.)
+5. **Paste your Account ID** when asked. Find it on REAL under **Settings → Account → Account ID**. It is not your wallet address, and never your private key or recovery phrase. It's checked with REAL and saved in `config.json`, so you're only asked once.
+6. Your browser opens the dashboard at http://127.0.0.1:8787. Keep the black window open while you use it; closing it stops the dashboard.
 
-To watch more than one account, or switch to testnet, see [Configuration](#configuration).
+### Mac
+
+1. **Install Python** (once) from [python.org/downloads](https://www.python.org/downloads/macos/). After installing, open **Finder → Applications → Python 3.x** and double-click **Install Certificates.command**. Without this step, Python can't make secure connections to REAL.
+2. **Download the dashboard.** On this page click **Code**, then **Download ZIP**. Safari usually unzips it for you; otherwise double-click the ZIP.
+3. **Open Terminal.** Press **Cmd+Space**, type `Terminal` and press Enter.
+4. **Go to the folder.** Type `cd` followed by a space, drag the unzipped folder from Finder into the Terminal window, and press Enter.
+5. **Start it.** Type `python3 dashboard.py` and press Enter.
+6. Paste your Account ID when asked (see step 5 for Windows), and your browser opens the dashboard. Keep the Terminal window open while you use it.
+
+### Linux
+
+Python 3.9+ is usually installed already. Download and unzip, then run `python3 dashboard.py` in the folder.
+
+### Changing account
+
+Close the dashboard, delete `config.json` from its folder and start it again; it will ask for an Account ID. Or start it with `py dashboard.py --change-account` (Windows) or `python3 dashboard.py --change-account` (Mac/Linux). To watch several accounts at once, list them in `config.json` (see [Configuration](#configuration)).
 
 ## How the numbers work
 
 - **Distance to liquidation** is how far the mark price must move against you to reach REAL's estimated liquidation price: `(mark − liq) / mark` for a long, `(liq − mark) / mark` for a short.
-- **What-if** uses the standard perpetuals condition for liquidation, collateral plus PnL equals maintenance margin, with REAL's published maintenance margin rate. It's calibrated so that, with nothing changed, it reproduces REAL's own liquidation price. Size changes are assumed to fill at the mark price, and fees and funding aren't included. For cross margin, other positions on the account are held constant.
-- **Liquidation map** values each position at its size times its liquidation price. Liquidation prices are REAL's estimates and move as traders add margin, trade or get funded, so treat the map as a snapshot.
+- **Cross margin.** REAL's estimate, and therefore this dashboard, assumes your other positions and balance stay where they are. Crypto prices tend to move together, so if your other positions lose money at the same time, liquidation can come sooner than shown.
+- **What-if** uses the standard condition for liquidation: collateral plus PnL falls to the maintenance margin (REAL's published rate) plus whatever else that collateral has to cover, such as your other positions' margin. That last amount is calibrated from REAL's own liquidation price, so with nothing changed the calculator matches REAL exactly, and when you change size or margin, your other positions' requirement stays fixed. Size changes are assumed to fill at the mark price; fees and funding aren't included. For isolated margin, the position's margin is assumed to stay the same when its size changes.
+- **Liquidation map** values each position at its size times its estimated liquidation price. Estimates move as traders add margin, trade or get funded, liquidations can be partial, and the scan can be up to a minute older than the current price, so treat the map as a snapshot rather than a forecast. Positions already past their liquidation price are counted separately.
+- **Performance** shows REAL's own lifetime realised PnL as the headline figure. The breakdown (trading PnL, fees, funding, win rate) is built from your recent history: up to 2,000 fills and 2,000 funding payments, and the page says how far back that goes. "Profitable closes" counts closing fills, so a position closed in several pieces counts several times.
 - **Market order cost** walks the current order book and adds the taker fee. The book can change before your order arrives.
 
 ## Alerts (optional)
@@ -72,10 +90,13 @@ To watch more than one account, or switch to testnet, see [Configuration](#confi
 | Position opened, closed or flipped | once | no |
 | Can't reach the API for 3+ minutes | once | yes |
 
+On Windows use `py` where these say `python3`:
+
 ```
 python3 real_risk_monitor.py --account 0xYOUR_ACCOUNT_ID --once     # check it works
 python3 real_risk_monitor.py --config config.json                    # run it
 python3 real_risk_monitor.py --config config.json --test-alert       # test Discord
+python3 real_risk_monitor.py --find-accounts 0xYOUR_WALLET_ADDRESS   # find Account IDs from a wallet address
 ```
 
 **Discord setup:** in a server you own, go to **Server Settings → Integrations → Webhooks → New Webhook**, pick a channel and **Copy Webhook URL**. Put it in `config.json` as `discord_webhook_url` (or set the `REAL_DISCORD_WEBHOOK` environment variable). Treat the URL like a password. To be @mentioned on serious alerts, turn on Developer Mode in Discord, right-click your name, **Copy User ID**, and set `"mention": "<@YOUR_USER_ID>"`.
@@ -98,14 +119,19 @@ Copy `config.example.json` to `config.json` and edit it. Every key is optional e
 | `recovery_buffer_pct` | `1.0` | How far a position must recover past a level before it's downgraded |
 | `notify_position_changes` | `true` | Alerts for opened, closed or flipped positions |
 | `api_down_alert_minutes` | `3` | Alert if the API is unreachable this long |
+| `stale_data_minutes` | `2` | Log a warning when REAL's computed values for a position are older than this |
+| `status_every_minutes` | `10` | How often the alert monitor prints a status table in its window (0 = only at startup) |
 
 ## Troubleshooting
 
-- **"python is not recognised"**: Python isn't installed or wasn't added to PATH. Reinstall it with **Add Python to PATH** ticked, or try `py dashboard.py`.
-- **"can't open file"**: you're in the wrong folder. Windows sometimes unzips into a folder inside a folder; go one level deeper.
-- **"Port 8787 is busy"**: the dashboard is already running in another window, or run `python dashboard.py --port 8788`.
-- **"Reconnecting" in the top right**: REAL's API is unreachable or rate-limiting you. It retries automatically. If it keeps happening, raise `poll_seconds` in `config.json`.
-- **Liquidation map says "Scanning"**: the first scan takes up to a minute after starting.
+- **"Python isn't installed, or Windows can't find it"**: install Python with the Python install manager from python.org, then run `start-dashboard.bat` again.
+- **"The dashboard files are missing"**: you ran it from inside the ZIP. Right-click the ZIP, choose **Extract All**, and run it from the extracted folder.
+- **"can't open file" (Mac)**: Terminal isn't in the dashboard folder. Repeat the `cd` step, dragging in the folder that contains `dashboard.py`.
+- **A message about certificates**: on a Mac, run **Install Certificates.command** from **Applications → Python 3.x**, then start again.
+- **"This is a wallet address" or "REAL has no account with this ID"**: the saved ID is wrong. Delete `config.json`, start again and paste the Account ID from REAL's **Settings → Account**.
+- **"Port 8787 is busy"**: the dashboard is already running in another window. Use that one, or close it first.
+- **"Reconnecting" or "Data delayed" in the top right**: REAL's API is unreachable or asking for fewer requests. It retries by itself. If it happens a lot, raise `poll_seconds` in `config.json` (for example to `30`).
+- **Liquidation map says "Scanning"**: the scan starts when you open the Market tab and takes up to a minute.
 
 ## For developers
 
@@ -113,7 +139,7 @@ Copy `config.example.json` to `config.json` and edit it. Every key is optional e
 python3 -m unittest -v
 ```
 
-Tests run offline using response shapes captured from REAL's mainnet API. Data comes from REAL's public indexer (`https://indexer.api.real.xyz`); the official Rust SDK at [realmarkets/rust-sdk](https://github.com/realmarkets/rust-sdk) documents the endpoints.
+Tests run offline using response shapes captured from REAL's mainnet API. If Node.js is installed, they also run `test_riskmath.js`, which tests the calculator maths in `riskmath.js`, the same file the dashboard uses. Data comes from REAL's public indexer (`https://indexer.api.real.xyz`); the official Rust SDK at [realmarkets/rust-sdk](https://github.com/realmarkets/rust-sdk) documents the endpoints.
 
 Issues and pull requests are welcome.
 

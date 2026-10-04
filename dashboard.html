@@ -3,11 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>REAL Risk</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600&display=swap" rel="stylesheet">
+<title>REAL Risk (unofficial)</title>
 <style>
+@font-face { font-family: "Barlow"; font-weight: 400; font-display: swap; src: url(/fonts/barlow-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 500; font-display: swap; src: url(/fonts/barlow-latin-500-normal.woff2) format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 600; font-display: swap; src: url(/fonts/barlow-latin-600-normal.woff2) format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 500; font-display: swap; src: url(/fonts/barlow-semi-condensed-latin-500-normal.woff2) format("woff2"); }
+@font-face { font-family: "Barlow Semi Condensed"; font-weight: 600; font-display: swap; src: url(/fonts/barlow-semi-condensed-latin-600-normal.woff2) format("woff2"); }
 :root {
   --bg: #151b26;
   --panel: #1c2330;
@@ -42,6 +44,10 @@ button, input, select { font: inherit; color: inherit; }
 .top { border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 5; }
 .top-in { max-width: 1360px; margin: 0 auto; padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 32px; }
 .brand { font-weight: 600; font-size: 17px; letter-spacing: .01em; white-space: nowrap; }
+.brand small { font-weight: 500; font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px; margin-left: 8px; vertical-align: 2px; }
+.caveat { color: var(--muted); font-size: 12px; margin-top: 10px; }
+.age { color: var(--muted); font-size: 12px; font-weight: 400; }
+.age.old { color: var(--warning); }
 .tabs { display: flex; gap: 24px; height: 100%; }
 .tabs a { display: flex; align-items: center; color: var(--muted); text-decoration: none; font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tabs a:hover { color: var(--ink-2); }
@@ -175,7 +181,7 @@ input[type=range] { width: 100%; margin: 8px 0 0; accent-color: var(--accent); }
 <body>
 <header class="top">
   <div class="top-in">
-    <div class="brand">REAL Risk</div>
+    <div class="brand">REAL Risk<small title="Community tool, not made by or affiliated with REAL">Unofficial</small></div>
     <nav class="tabs" aria-label="Sections">
       <a href="#positions" data-view="positions">Positions</a>
       <a href="#performance" data-view="performance">Performance</a>
@@ -233,8 +239,9 @@ input[type=range] { width: 100%; margin: 8px 0 0; accent-color: var(--accent); }
     <div class="kpi"><div class="k">Fees</div><div class="v" id="p-fees">–</div></div>
     <div class="kpi"><div class="k">Funding</div><div class="v" id="p-funding">–</div></div>
     <div class="kpi"><div class="k">Volume</div><div class="v" id="p-volume">–</div></div>
-    <div class="kpi"><div class="k">Win rate</div><div class="v" id="p-win">–</div></div>
+    <div class="kpi"><div class="k">Profitable closes</div><div class="v" id="p-win">–</div></div>
   </section>
+  <div class="caveat" id="p-note" style="margin:-6px 0 16px"></div>
   <section class="panel" style="margin-bottom:16px">
     <div class="ph"><h2>Cumulative realised PnL <span>after fees and funding</span></h2>
       <div class="seg" id="pnl-range" role="group" aria-label="Time range">
@@ -251,6 +258,7 @@ input[type=range] { width: 100%; margin: 8px 0 0; accent-color: var(--accent); }
 
 <!-- ============================ Market ============================ -->
 <main id="view-market" hidden>
+  <div class="picker" id="market-picker"></div>
   <section class="kpis" aria-label="Market">
     <div class="kpi"><div class="k">Mark price</div><div class="v" id="m-mark">–</div></div>
     <div class="kpi"><div class="k">24h change</div><div class="v" id="m-change">–</div></div>
@@ -262,7 +270,6 @@ input[type=range] { width: 100%; margin: 8px 0 0; accent-color: var(--accent); }
 
   <section class="panel" style="margin-bottom:16px">
     <div class="ph"><h2 id="map-title">Liquidation levels</h2>
-      <select id="map-market" aria-label="Market" hidden></select>
       <div class="seg" id="map-range" role="group" aria-label="Price range">
         <button data-v="0.05">±5%</button><button data-v="0.1" aria-pressed="true">±10%</button><button data-v="0.25">±25%</button>
       </div>
@@ -276,7 +283,7 @@ input[type=range] { width: 100%; margin: 8px 0 0; accent-color: var(--accent); }
 
   <div class="grid g-1-1">
     <section class="panel">
-      <div class="ph"><h2>Order book depth</h2></div>
+      <div class="ph"><h2>Order book depth</h2><span class="age" id="book-age"></span></div>
       <div class="chart h-depth" id="depth-box"><svg id="depth"></svg><div class="tip" id="depth-tip"></div></div>
       <div class="legend"><span><i class="sw" style="background:var(--long)"></i>Bids</span><span><i class="sw" style="background:var(--short)"></i>Asks</span></div>
     </section>
@@ -294,14 +301,16 @@ input[type=range] { width: 100%; margin: 8px 0 0; accent-color: var(--accent); }
 </main>
 </div>
 
+<script src="/riskmath.js"></script>
 <script>
 "use strict";
 const $ = id => document.getElementById(id);
+const R = window.RiskMath;
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const ZONES = {
-  ok: { c: "--ok", label: "Safe" }, warning: { c: "--warning", label: "Warning" },
+  ok: { c: "--ok", label: "Outside alert levels" }, warning: { c: "--warning", label: "Warning" },
   danger: { c: "--danger", label: "Danger" }, critical: { c: "--critical", label: "Critical" },
-  stale: { c: "--muted", label: "Price stale" },
+  stale: { c: "--muted", label: "Price stale" }, unknown: { c: "--muted", label: "Liquidation price unavailable" },
 };
 const FONT = `font-family="Barlow, sans-serif"`;
 
@@ -333,7 +342,8 @@ function zoneIcon(z, s = 12) {
   const c = css((ZONES[z] || ZONES.ok).c);
   const shape = { ok: `<circle cx="6" cy="6" r="5" fill="${c}"/>`, warning: `<path d="M6 1 11.5 11H.5Z" fill="${c}"/>`,
     danger: `<path d="M6 0 12 6 6 12 0 6Z" fill="${c}"/>`, critical: `<rect x="1" y="1" width="10" height="10" rx="1.5" fill="${c}"/>`,
-    stale: `<circle cx="6" cy="6" r="4.5" fill="none" stroke="${c}" stroke-width="1.8"/>` }[z] || "";
+    stale: `<circle cx="6" cy="6" r="4.5" fill="none" stroke="${c}" stroke-width="1.8"/>`,
+    unknown: `<circle cx="6" cy="6" r="4.5" fill="none" stroke="${c}" stroke-width="1.8"/>` }[z] || "";
   return `<svg width="${s}" height="${s}" viewBox="0 0 12 12" aria-hidden="true">${shape}</svg>`;
 }
 function box(id) { const el = $(id); return { W: el.clientWidth, H: el.clientHeight }; }
@@ -366,13 +376,24 @@ function route() {
 }
 window.addEventListener("hashchange", route);
 
+// The market whose order book and stats matter right now: the one picked on the Market tab,
+// otherwise the selected position's market.
+function viewedMarket() {
+  if (!S) return null;
+  if (mapMarket && S.markets[mapMarket]) return mapMarket;
+  const p = S.positions.find(x => x.key === selected) || S.positions[0];
+  if (p && S.markets[p.market_id]) return p.market_id;
+  return S.active_market && S.markets[S.active_market] ? S.active_market : Object.keys(S.markets)[0] || null;
+}
+
 async function loadState() {
   try {
-    S = await (await fetch("/api/state", { cache: "no-store" })).json();
+    const m = viewedMarket();
+    S = await (await fetch("/api/state" + (m ? "?market=" + encodeURIComponent(m) : ""), { cache: "no-store" })).json();
     lastOk = Date.now();
     draw();
   } catch (e) {
-    banner("The dashboard program isn't running. Start it again with start-dashboard.bat, then refresh.");
+    banner(["The dashboard program isn't running. Start it again, then refresh this page."]);
     setLive("off", "Offline");
   }
 }
@@ -382,12 +403,24 @@ async function loadPerf() {
 async function loadMap() {
   try { liq = await (await fetch("/api/liqmap", { cache: "no-store" })).json(); if (view === "market" && S) drawMarket(); } catch (e) {}
 }
-function banner(text) { $("banner-text").textContent = text || ""; $("banner").classList.toggle("show", !!text); }
+function banner(lines) {
+  lines = (lines || []).filter(Boolean);
+  $("banner-text").innerHTML = lines.map(esc).join("<br>");
+  $("banner").classList.toggle("show", lines.length > 0);
+}
 function setLive(kind, text, title) { const el = $("live"); el.innerHTML = `<span class="dot ${kind}"></span><span>${esc(text)}</span>`; el.title = title || ""; }
+// Data counts as stale when nothing new has arrived for three refresh cycles.
+function staleFor() {
+  const t = S && S.status.last_success_ms;
+  if (!t) return 0;
+  const age = Date.now() - t;
+  return age > Math.max(3 * S.poll_seconds * 1000, 45000) ? age : 0;
+}
 function updateLive() {
   if (!S) return;
   if (Date.now() - lastOk > 30000) return setLive("off", "Offline");
   if (!S.status.ok && S.status.error) return setLive("off", "Reconnecting", S.status.error);
+  if (staleFor()) return setLive("off", "Data delayed", `Last update ${ago(S.status.last_success_ms)} ago`);
   const t = S.status.last_success_ms;
   setLive(t ? "on" : "", t ? "Live" : "Loading", t ? `Updated ${ago(t)} ago` : "");
 }
@@ -395,7 +428,10 @@ function updateLive() {
 function draw() {
   if (!S) return;
   updateLive();
-  banner(!S.status.ok && S.status.error ? "Can't reach REAL's API. Figures may be out of date." : "");
+  const msgs = S.accounts.filter(a => a.error).map(a => `Account ${a.label}: ${a.error}`);
+  if (!S.status.ok && S.status.error) msgs.push(S.status.error_kind === "certificate" ? S.status.error : "Can't reach REAL's API. Figures may be out of date until it reconnects.");
+  else if (staleFor()) msgs.push(`No new data from REAL for ${ago(S.status.last_success_ms)}. Figures may be out of date.`);
+  banner(msgs);
   if (view === "positions") drawPositions();
   if (view === "performance") drawPerformance();
   if (view === "market") drawMarket();
@@ -403,11 +439,23 @@ function draw() {
 
 const firstMarketId = () => Object.keys(S.markets)[0];
 const totals = key => { const v = S.accounts.map(a => a[key]).filter(ok); return v.length ? v.reduce((a, b) => a + b, 0) : null; };
-const unit = () => { const m = S && S.markets[firstMarketId()]; return m ? quoteOf(m.symbol) : ""; };
+const unit = () => { const m = S && S.markets[viewedMarket() || firstMarketId()]; return m ? quoteOf(m.symbol) : ""; };
 const U = () => unit() ? `<small>${esc(unit())}</small>` : "";
+const multiAccount = () => S.accounts.length > 1;
+const multiMarket = rows => new Set(rows.map(r => r.symbol)).size > 1 || Object.keys(S.markets).length > 1;
+const WAITING = `<div class="empty">Waiting for data from REAL.</div>`;
 
 // ================================================================ POSITIONS
 function drawPositions() {
+  if (!S.loaded) {
+    ["k-equity", "k-available", "k-upnl", "k-margin", "k-lev"].forEach(id => $(id).textContent = "–");
+    $("picker").innerHTML = "";
+    $("risk").innerHTML = `<div class="ph"><h2>Risk</h2></div>${WAITING}`;
+    $("wi-body").innerHTML = WAITING; $("wi-reset").hidden = true; curPos = null; wi.key = null;
+    $("orders").innerHTML = $("fills").innerHTML = WAITING;
+    drawPrice(null, S.markets[viewedMarket()]);
+    return;
+  }
   const eq = totals("equity"), up = totals("upnl"), used = (totals("margin_contracts") || 0) + (totals("margin_orders") || 0);
   const notional = S.positions.reduce((a, p) => a + (p.notional || 0), 0);
   $("k-equity").innerHTML = num(eq) + U();
@@ -419,12 +467,12 @@ function drawPositions() {
   const ps = S.positions;
   if (!ps.find(p => p.key === selected)) selected = ps[0] ? ps[0].key : null;
   $("picker").innerHTML = ps.length < 2 ? "" : ps.map(p => `<button type="button" data-k="${esc(p.key)}" aria-pressed="${p.key === selected}">
-      ${zoneIcon(p.tier)}<span>${esc(p.symbol)} <span class="side ${p.direction}">${esc(p.direction)}</span>${S.accounts.length > 1 ? ` <span class="muted">${esc(p.account)}</span>` : ""}</span>
-      <span class="muted">${p.no_liq ? "no liq." : pct(p.distance)}</span></button>`).join("");
+      ${zoneIcon(p.tier)}<span>${esc(p.symbol)} <span class="side ${p.direction}">${esc(p.direction)}</span>${multiAccount() ? ` <span class="muted">${esc(p.account)}</span>` : ""}</span>
+      <span class="muted">${p.no_liq ? "no liq." : ok(p.distance) ? pct(p.distance) : "–"}</span></button>`).join("");
   $("picker").querySelectorAll("button").forEach(b => b.onclick = () => { selected = b.dataset.k; drawPositions(); });
 
   const p = ps.find(x => x.key === selected) || null;
-  const mk = S.markets[p ? p.market_id : firstMarketId()];
+  const mk = S.markets[p ? p.market_id : viewedMarket()];
   drawRisk(p, mk);
   drawPrice(p, mk);
   drawWhatIf(p, mk);
@@ -435,7 +483,8 @@ function drawPositions() {
 function drawRisk(p, mk) {
   const el = $("risk");
   if (!p) {
-    el.innerHTML = `<div class="ph"><h2>Risk</h2></div><div class="empty">No open positions.</div>
+    const bad = S.accounts.length && S.accounts.every(a => a.error);
+    el.innerHTML = `<div class="ph"><h2>Risk</h2></div><div class="empty">${bad ? "Account not found. See the message at the top." : "No open positions."}</div>
       <div class="kv">${mk ? `<div class="k">${esc(mk.symbol)} mark</div><div class="v">${px(mk.mark)}</div>` : ""}</div>`;
     return;
   }
@@ -451,7 +500,7 @@ function drawRisk(p, mk) {
       <svg class="gauge" id="gauge" role="img" aria-label="Distance to liquidation gauge"></svg>
     </div>
     <div class="kv">
-      <div class="k">Liquidation price</div><div class="v">${p.liq ? px(p.liq) : "None"}</div>
+      <div class="k">Liquidation price</div><div class="v">${p.liq ? px(p.liq) : p.no_liq ? "None" : "Unavailable"}</div>
       <div class="k">Move to liquidation</div><div class="v">${p.liq ? sgn(move) : "–"}</div>
       <div class="k">Mark price</div><div class="v">${px(p.mark)}</div>
       <div class="k">Entry price</div><div class="v">${px(p.entry)}</div>
@@ -459,7 +508,8 @@ function drawRisk(p, mk) {
       <div class="k">Position value</div><div class="v">${num(p.notional)}</div>
       <div class="k">Margin</div><div class="v">${num(p.margin)}</div>
       <div class="k">Margin mode</div><div class="v">${esc(p.margin_mode)}${p.max_leverage ? `, ${num(p.max_leverage, 0)}x max` : ""}</div>
-    </div>`;
+    </div>
+    ${p.margin_mode === "Cross" ? `<div class="caveat">Cross margin: REAL's estimate assumes your other positions and balance stay where they are. If they move too, liquidation can come sooner.</div>` : ""}`;
   drawGauge(p);
 }
 
@@ -506,7 +556,7 @@ function drawPrice(p, mk) {
   const nx = W < 500 ? 2 : 5;
   for (let i = 0; i <= nx; i++) { const t = x0 + (x1 - x0) * i / nx;
     g.push(`<text x="${sx(t)}" y="${H - 6}" font-size="11" fill="${css("--muted")}" text-anchor="${i === 0 ? "start" : i === nx ? "end" : "middle"}" ${FONT}>${hhmm(t)}</text>`); }
-  const legend = [`<span><svg width="16" height="4"><line x1="0" x2="16" y1="2" y2="2" stroke="${css("--accent")}" stroke-width="2"/></svg>Mark price</span>`];
+  const legend = [`<span><svg width="16" height="4"><line x1="0" x2="16" y1="2" y2="2" stroke="${css("--accent")}" stroke-width="2"/></svg>Price</span>`];
   if (p && p.entry) {
     const ye = sy(p.entry);
     g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${ye}" y2="${ye}" stroke="${css("--ink-2")}" stroke-dasharray="2 4"/>`);
@@ -549,32 +599,20 @@ function drawPrice(p, mk) {
 function nearest(pts, t) { let lo = 0, hi = pts.length - 1; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (pts[mid][0] < t) lo = mid; else hi = mid; } return Math.abs(pts[lo][0] - t) < Math.abs(pts[hi][0] - t) ? lo : hi; }
 
 // ---------------------------------------------------------------- what-if
-// Liquidation happens when collateral plus PnL from here equals maintenance margin:
-//   C + σ·s·(P − M) = m·s·P   so   P = (C − σ·s·M) / (s·(m − σ))
-// σ = +1 long / −1 short, C = equity (cross) or margin + uPnL (isolated), M = mark price.
-// m is calibrated so the current position reproduces REAL's own liquidation estimate.
+// The maths lives in riskmath.js (shared with the automated tests).
 let wi = { key: null, price: null, size: null, add: 0, touched: false };
-let curModel = null, curPos = null;
-function model(p, mk) {
-  const sig = p.direction === "Long" ? 1 : -1, s = p.size, M = p.mark;
-  const C = p.margin_mode === "Isolated" ? (p.margin || 0) + (p.upnl || 0) : p.account_equity;
-  let m = mk && ok(mk.mmr) ? mk.mmr : 0.0125, calibrated = false;
-  if (p.liq && ok(C) && s > 0) { const mc = sig + (C - sig * s * M) / (s * p.liq); if (mc > 0 && mc < 0.5) { m = mc; calibrated = true; } }
-  return { sig, s, M, C, m, calibrated, mmr: mk && mk.mmr };
-}
-function liqAt(md, C, s) { if (!(s > 0) || !ok(C)) return null; const P = (C - md.sig * s * md.M) / (s * (md.m - md.sig)); return P > 0 ? P : null; }
-function distFrom(md, P, L) { return L ? md.sig * (P - L) / P * 100 : null; }
+let curModel = null, curPos = null, curDecimals = 2;
 
 function drawWhatIf(p, mk) {
   const body = $("wi-body");
   $("wi-reset").hidden = !p;
   if (!p || !ok(p.mark) || !ok(p.size)) { body.innerHTML = `<div class="empty">Open a position to model price moves, size changes and margin.</div>`; wi.key = null; curPos = null; return; }
-  const md = model(p, mk);
-  if (!ok(md.C)) { body.innerHTML = `<div class="empty">Waiting for account data.</div>`; return; }
+  const md = R.model(p, mk && mk.mmr);
+  if (!ok(md.C)) { body.innerHTML = `<div class="empty">Waiting for account data.</div>`; wi.key = null; return; }
   const q = quoteOf(p.symbol), b = baseOf(p.symbol);
-  if (wi.key !== p.key) wi = { key: p.key, price: p.mark, size: p.size, add: 0, touched: false };
-  if (!wi.touched) wi.price = p.mark;
-  if (!$("wi-price")) {
+  // Rebuild the inputs whenever a different position is selected, so units always match.
+  if (wi.key !== p.key || !$("wi-price")) {
+    wi = { key: p.key, price: p.mark, size: p.size, add: 0, touched: false };
     body.innerHTML = `
       <div class="wi-inputs">
         <div><label for="wi-price">Price</label><div class="inbox"><input id="wi-price" type="number" step="any"><span>${esc(q)}</span></div>
@@ -596,7 +634,9 @@ function drawWhatIf(p, mk) {
     bind("wi-add", () => { wi.add = parseFloat($("wi-add").value) || 0; syncSliders(); });
     bind("wi-add-r", () => { wi.add = Math.round(addScale() * $("wi-add-r").value) / 100; syncInputs("add"); });
   }
+  if (!wi.touched) wi.price = p.mark;
   curModel = md; curPos = p;
+  curDecimals = mk && ok(mk.tick_size) && mk.tick_size > 0 ? Math.min(8, Math.max(0, -Math.floor(Math.log10(mk.tick_size) + 1e-9))) : 6;
   // Don't overwrite a field the user is typing in.
   const focused = document.activeElement && document.activeElement.closest && document.activeElement.closest("#whatif");
   if (!focused) { syncInputs("price"); syncInputs("size"); syncInputs("add"); }
@@ -604,7 +644,7 @@ function drawWhatIf(p, mk) {
 }
 const addScale = () => Math.max(10, Math.abs(curModel.C) * 2);
 function syncInputs(which) {
-  if (which === "price") $("wi-price").value = +(+wi.price).toFixed(2);
+  if (which === "price") $("wi-price").value = +(+wi.price).toFixed(curDecimals);
   if (which === "size") $("wi-size").value = size(wi.size);
   if (which === "add") $("wi-add").value = wi.add;
   syncSliders();
@@ -623,47 +663,56 @@ $("wi-reset").onclick = () => {
 
 function wiCompute() {
   const md = curModel, p = curPos; if (!md || !p || !$("wi-rows")) return;
-  const P = ok(wi.price) && wi.price > 0 ? wi.price : md.M, s2 = ok(wi.size) ? wi.size : md.s, C2 = md.C + (wi.add || 0);
-  const L0 = p.liq || liqAt(md, md.C, md.s), L1 = liqAt(md, C2, s2);
-  const eq0 = md.C, eq1 = C2 + md.sig * s2 * (P - md.M);
-  const d0 = distFrom(md, md.M, L0), d1 = s2 > 0 ? distFrom(md, P, L1) : null;
-  const lev0 = eq0 > 0 ? md.s * md.M / eq0 : null, lev1 = eq1 > 0 ? s2 * P / eq1 : null;
-  const pnl1 = md.sig * s2 * (P - md.M);
-  const liquidated = s2 > 0 && eq1 <= md.m * s2 * P;
+  const P = ok(wi.price) && wi.price > 0 ? wi.price : md.M, s2 = ok(wi.size) ? wi.size : md.s;
+  const now = R.baseline(md), sc = R.scenario(md, P, s2, wi.add || 0);
   const row = (label, a, b, fmt, diff) => `<tr><td>${label}</td><td class="num r">${fmt(a)}</td><td class="num r">${fmt(b)}</td><td class="num r muted hide-sm">${ok(a) && ok(b) ? diff(b - a) : "–"}</td></tr>`;
+  const liqText = v => ok(v) ? px(v) : "None";
   $("wi-rows").innerHTML =
-    row("Liquidation price", L0, s2 > 0 ? L1 : null, v => ok(v) ? px(v) : "None", d => sgn(d)) +
-    `<tr><td>Distance to liquidation</td><td class="num r">${ok(d0) ? pct(d0) : "–"}</td>
-       <td class="num r" style="${liquidated ? `color:${css("--critical")}` : ""}">${liquidated ? "Liquidated" : ok(d1) ? pct(Math.max(0, d1)) : s2 > 0 ? "None" : "–"}</td>
-       <td class="num r muted hide-sm">${ok(d0) && ok(d1) && !liquidated ? sgn(d1 - d0) + " pts" : "–"}</td></tr>` +
-    `<tr><td>PnL from current price</td><td class="num r">0.00</td><td class="num r ${cls(pnl1)}">${sgn(pnl1)}</td><td class="num r muted hide-sm">–</td></tr>` +
-    row("Equity", eq0, eq1, v => num(v), d => sgn(d)) +
-    row("Leverage", lev0, lev1, v => ok(v) ? num(v) + "x" : "–", d => sgn(d) + "x");
+    row("Liquidation price", now.liq, s2 > 0 ? sc.liq : null, liqText, d => sgn(d)) +
+    `<tr><td>Distance to liquidation</td><td class="num r">${ok(now.distance) ? pct(now.distance) : "–"}</td>
+       <td class="num r" style="${sc.liquidated ? `color:${css("--critical")}` : ""}">${sc.liquidated ? "Liquidated" : ok(sc.distance) ? pct(sc.distance) : s2 > 0 ? "None" : "–"}</td>
+       <td class="num r muted hide-sm">${ok(now.distance) && ok(sc.distance) ? sgn(sc.distance - now.distance) + " pts" : "–"}</td></tr>` +
+    `<tr><td>PnL from current price</td><td class="num r">0.00</td><td class="num r ${cls(sc.pnl)}">${sgn(sc.pnl)}</td><td class="num r muted hide-sm">–</td></tr>` +
+    row("Equity", now.equity, sc.equity, v => num(v), d => sgn(d)) +
+    row("Leverage", now.leverage, sc.leverage, v => ok(v) ? num(v) + "x" : "–", d => sgn(d) + "x");
 
   $("wi-need").innerHTML = [10, 20, 30, 50].map(d => {
-    const target = md.M * (1 - md.sig * d / 100);
-    if (!(target > 0) || !(s2 > 0)) return `<tr><td>${d}%</td><td class="num r">–</td><td class="num r">–</td></tr>`;
-    const add = md.sig * s2 * md.M + s2 * target * (md.m - md.sig) - md.C;
-    return `<tr><td>${d}%</td><td class="num r">${px(target)}</td><td class="num r">${add <= (wi.add || 0) + 1e-9 ? "Already there" : num(add) + " " + esc(quoteOf(p.symbol))}</td></tr>`;
+    const r = R.marginFor(md, s2, d);
+    if (!ok(r.target) || !ok(r.add)) return `<tr><td>${d}%</td><td class="num r">–</td><td class="num r">–</td></tr>`;
+    return `<tr><td>${d}%</td><td class="num r">${px(r.target)}</td><td class="num r">${r.add <= (wi.add || 0) + 1e-9 ? "Already there" : num(r.add) + " " + esc(quoteOf(p.symbol))}</td></tr>`;
   }).join("");
-  const shared = p.margin_mode === "Cross" && S.positions.filter(x => x.account_id === p.account_id).length > 1;
-  $("wi-note").textContent = `Uses REAL's ${ok(md.mmr) ? num(md.mmr * 100, 2) + "% " : ""}maintenance margin${md.calibrated ? ", calibrated to REAL's current liquidation price" : ""}. ` +
-    `Size changes fill at the mark price. Excludes fees and funding.${shared ? " Other positions on this account are held constant." : ""}`;
+  const others = p.margin_mode === "Cross" && S.positions.filter(x => x.account_id === p.account_id).length > 1;
+  $("wi-note").textContent = (md.calibrated
+      ? `Uses REAL's ${num(md.m * 100, 2)}% maintenance margin, calibrated so the unchanged position matches REAL's liquidation price.`
+      : `REAL gives no liquidation price for this position, so this assumes nothing else on the account needs margin.`) +
+    ` Size changes fill at the mark price. Excludes fees and funding.` +
+    (others ? " Your other positions are assumed not to move." : "") +
+    (p.margin_mode === "Isolated" ? " For isolated margin, the position's margin is assumed to stay the same when its size changes." : "");
 }
 
+// Optional market / account columns, only when there's more than one to tell apart.
+function extraCols(rows) {
+  const mkt = multiMarket(rows), acc = multiAccount();
+  return {
+    head: (mkt ? "<th>Market</th>" : "") + (acc ? "<th>Account</th>" : ""),
+    cells: x => (mkt ? `<td>${esc(x.symbol)}</td>` : "") + (acc ? `<td class="muted">${esc(x.account)}</td>` : ""),
+  };
+}
 function drawOrders() {
   const o = S.orders;
   if (!o.length) { $("orders").innerHTML = `<div class="empty">No open orders.</div>`; return; }
-  $("orders").innerHTML = `<table><thead><tr><th>Side</th><th>Type</th><th class="r">Price</th><th class="r">Filled</th><th class="r">Age</th></tr></thead><tbody>${
-    o.map(x => `<tr><td class="${x.side === "Buy" ? "gain" : "loss"}">${esc(x.side)}${x.reduce_only ? ` <span class="muted">reduce</span>` : ""}</td>
+  const X = extraCols(o);
+  $("orders").innerHTML = `<table><thead><tr>${X.head}<th>Side</th><th>Type</th><th class="r">Price</th><th class="r">Filled</th><th class="r">Age</th></tr></thead><tbody>${
+    o.map(x => `<tr>${X.cells(x)}<td class="${x.side === "Buy" ? "gain" : "loss"}">${esc(x.side)}${x.reduce_only ? ` <span class="muted">reduce</span>` : ""}</td>
       <td>${esc(words(x.type))}</td><td class="num r">${x.price ? px(x.price) : x.trigger ? "at " + px(x.trigger) : "Market"}</td>
       <td class="num r">${size(x.filled)} / ${size(x.quantity)}</td><td class="r muted">${ago(x.t)}</td></tr>`).join("")}</tbody></table>`;
 }
 function drawFills() {
   const f = S.fills;
-  if (!f.length) { $("fills").innerHTML = `<div class="empty">No trades yet.</div>`; return; }
-  $("fills").innerHTML = `<table><thead><tr><th>Action</th><th class="r">Price</th><th class="r">Size</th><th class="r">PnL</th><th class="r">Age</th></tr></thead><tbody>${
-    f.slice(0, 6).map(x => `<tr><td class="${x.direction === "Long" ? "gain" : "loss"}">${esc(words(x.context) || (x.direction === "Long" ? "Buy" : "Sell"))}</td>
+  if (!f.length) { $("fills").innerHTML = `<div class="empty">${perf && !perf.loaded ? "Loading." : "No trades yet."}</div>`; return; }
+  const X = extraCols(f);
+  $("fills").innerHTML = `<table><thead><tr>${X.head}<th>Action</th><th class="r">Price</th><th class="r">Size</th><th class="r">PnL</th><th class="r">Age</th></tr></thead><tbody>${
+    f.slice(0, 6).map(x => `<tr>${X.cells(x)}<td class="${x.direction === "Long" ? "gain" : "loss"}">${esc(words(x.context) || (x.direction === "Long" ? "Buy" : "Sell"))}</td>
       <td class="num r">${px(x.price)}</td><td class="num r">${size(x.volume)}</td><td class="num r ${cls(x.pnl)}">${sgn(x.pnl, 4)}</td><td class="r muted">${ago(x.t)}</td></tr>`).join("")}</tbody></table>`;
 }
 
@@ -671,13 +720,17 @@ function drawFills() {
 function drawPerformance() {
   if (!perf || !perf.loaded) {
     ["p-net", "p-trade", "p-fees", "p-funding", "p-volume", "p-win"].forEach(id => $(id).textContent = "–");
+    $("p-note").textContent = "";
     emptyChart("pnl", "pnl-box", "Loading trade history");
     $("history").innerHTML = $("funding").innerHTML = `<div class="empty">Loading.</div>`;
     return;
   }
   const F = perf.fills, Fu = perf.funding, sum = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
-  const tradePnl = sum(F, "trade_pnl"), fees = sum(F, "fee"), funding = sum(Fu, "payment"), net = sum(F, "pnl") + funding, vol = sum(F, "value");
+  const tradePnl = sum(F, "trade_pnl"), fees = sum(F, "fee"), funding = sum(Fu, "payment"), computed = sum(F, "pnl") + funding, vol = sum(F, "value");
+  // Win rate counts closing fills: one position closed in several fills counts several times.
   const closes = F.filter(x => ok(x.trade_pnl) && Math.abs(x.trade_pnl) > 0), wins = closes.filter(x => x.trade_pnl > 0).length;
+  // REAL's own lifetime total is the headline; the breakdown comes from the loaded history.
+  const official = perf.account_realised_pnl, net = ok(official) ? official : computed;
   $("p-net").innerHTML = `<span class="${cls(net)}">${sgn(net)}</span>${U()}`;
   $("p-trade").innerHTML = `<span class="${cls(tradePnl)}">${sgn(tradePnl)}</span>${U()}`;
   $("p-fees").innerHTML = `<span class="${cls(fees)}">${sgn(fees)}</span>${U()}`;
@@ -685,14 +738,22 @@ function drawPerformance() {
   $("p-volume").innerHTML = compact(vol) + U();
   $("p-win").innerHTML = closes.length ? `${pct(wins / closes.length * 100, 0)}<small>${wins} of ${closes.length}</small>` : "–";
 
+  const oldest = F.length ? F[F.length - 1].t : null, partial = perf.truncated.fills || perf.truncated.funding;
+  const notes = [];
+  if (F.length) notes.push(`Breakdown covers ${F.length} fills since ${stamp(oldest)}${partial ? ". Older history wasn't loaded" : ""}.`);
+  if (ok(official) && Math.abs(official - computed) > 0.01)
+    notes.push(`Net realised PnL is REAL's own lifetime figure. It differs from the breakdown by ${sgn(official - computed)}${partial ? ", which is expected with partial history" : ", possibly from liquidations or adjustments not shown in fills"}.`);
+  $("p-note").textContent = notes.join(" ");
+
   const ev = F.map(x => [x.t, x.pnl || 0]).concat(Fu.map(x => [x.t, x.payment || 0])).filter(e => e[0]).sort((a, b) => a[0] - b[0]);
   let run = 0;
   drawPnlChart(ev.map(e => [e[0], run += e[1]]));
 
-  $("hist-count").textContent = F.length ? `${F.length}${perf.truncated ? "+" : ""} fills` : "";
+  const X = extraCols(F);
+  $("hist-count").textContent = F.length ? `${F.length}${perf.truncated.fills ? "+" : ""} fills` : "";
   $("history").innerHTML = !F.length ? `<div class="empty">No trades yet.</div>` :
-    `<table><thead><tr><th>Time</th><th>Action</th><th class="hide-sm">Order</th><th class="r">Price</th><th class="r">Size</th><th class="r hide-sm">Value</th><th class="r hide-sm">Fee</th><th class="r">PnL</th></tr></thead><tbody>${
-      F.slice(0, historyShown).map(x => `<tr><td class="muted">${stamp(x.t)}</td>
+    `<table><thead><tr><th>Time</th>${X.head}<th>Action</th><th class="hide-sm">Order</th><th class="r">Price</th><th class="r">Size</th><th class="r hide-sm">Value</th><th class="r hide-sm">Fee</th><th class="r">PnL</th></tr></thead><tbody>${
+      F.slice(0, historyShown).map(x => `<tr><td class="muted">${stamp(x.t)}</td>${X.cells(x)}
         <td class="${x.direction === "Long" ? "gain" : "loss"}">${esc(words(x.context) || (x.direction === "Long" ? "Buy" : "Sell"))}${x.fill_type && x.fill_type !== "Normal" ? ` <span class="muted">${esc(words(x.fill_type))}</span>` : ""}</td>
         <td class="hide-sm">${esc(words(x.order_type))} <span class="muted">${x.taker ? "taker" : "maker"}</span></td>
         <td class="num r">${px(x.price)}</td><td class="num r">${size(x.volume)}</td><td class="num r hide-sm">${num(x.value)}</td>
@@ -700,10 +761,11 @@ function drawPerformance() {
      ${F.length > historyShown ? `<button class="textbtn more" id="hist-more" type="button">Show ${Math.min(50, F.length - historyShown)} more</button>` : ""}`;
   const more = $("hist-more"); if (more) more.onclick = () => { historyShown += 50; drawPerformance(); };
 
+  const XF = extraCols(Fu);
   $("funding").innerHTML = !Fu.length ? `<div class="empty">No funding payments yet.</div>` :
-    `<div class="kv" style="margin-bottom:10px"><div class="k">Total</div><div class="v ${cls(funding)}">${sgn(funding, 4)}</div><div class="k">Payments</div><div class="v">${Fu.length}</div></div>
-     <table><thead><tr><th>Time</th><th class="r">Rate</th><th class="r">Position</th><th class="r">Payment</th></tr></thead><tbody>${
-      Fu.slice(0, 100).map(x => `<tr><td class="muted">${stamp(x.t)}</td><td class="num r">${spct((x.rate || 0) * 100, 4)}</td>
+    `<div class="kv" style="margin-bottom:10px"><div class="k">Total</div><div class="v ${cls(funding)}">${sgn(funding, 4)}</div><div class="k">Payments</div><div class="v">${Fu.length}${perf.truncated.funding ? "+" : ""}</div></div>
+     <table><thead><tr><th>Time</th>${XF.head}<th class="r">Rate</th><th class="r">Position</th><th class="r">Payment</th></tr></thead><tbody>${
+      Fu.slice(0, 100).map(x => `<tr><td class="muted">${stamp(x.t)}</td>${XF.cells(x)}<td class="num r">${spct((x.rate || 0) * 100, 4)}</td>
         <td class="num r">${size(x.size)} <span class="muted">${esc(x.side || "")}</span></td><td class="num r ${cls(x.payment)}">${sgn(x.payment, 4)}</td></tr>`).join("")}</tbody></table>`;
 }
 
@@ -747,47 +809,50 @@ function drawPnlChart(all) {
 
 // ================================================================ MARKET
 function drawMarket() {
-  const mid = mapMarket && S.markets[mapMarket] ? mapMarket : firstMarketId();
-  const mk = S.markets[mid];
+  const mid = viewedMarket(), mk = mid ? S.markets[mid] : null;
+  const ids = Object.keys(S.markets);
+  $("market-picker").innerHTML = ids.length < 2 ? "" : ids.map(id => `<button type="button" data-m="${esc(id)}" aria-pressed="${id === mid}">${esc(S.markets[id].symbol || rrmShort(id))}</button>`).join("");
+  $("market-picker").querySelectorAll("button").forEach(b => b.onclick = () => { mapMarket = b.dataset.m; drawMarket(); loadState(); });
   if (mk) {
     const u = quoteOf(mk.symbol) ? `<small>${esc(quoteOf(mk.symbol))}</small>` : "";
     $("m-mark").innerHTML = px(mk.mark);
     $("m-change").innerHTML = `<span class="${cls(mk.change_24h)}">${ok(mk.change_24h) ? spct(mk.change_24h * 100) : "–"}</span>`;
-    $("m-range").innerHTML = `${num(mk.low_24h, 0)}–${num(mk.high_24h, 0)}`;
+    const rng = v => ok(v) && Math.abs(v) >= 1000 ? num(v, 0) : px(v);   // whole numbers for big prices, full precision for small ones
+    $("m-range").innerHTML = `${rng(mk.low_24h)}<small>to</small> ${rng(mk.high_24h)}`;
     $("m-volume").innerHTML = compact(mk.turnover_24h) + u;
     $("m-oi").innerHTML = compact(mk.open_interest_value) + u;
     const until = mk.funding_time_ms ? Math.max(0, mk.funding_time_ms - Date.now()) : null;
     $("m-funding").innerHTML = ok(mk.funding_rate) ? `${spct(mk.funding_rate * 100, 4)}<small id="m-fund-cd">${until != null ? countdown(until) : ""}</small>` : "–";
   }
-  drawLiqMap();
+  drawLiqMap(mid);
   drawDepth(mk);
   drawImpact(mk);
 }
-function countdown(ms) { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; }
+const rrmShort = id => id.length > 12 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
+function countdown(ms) { const s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}:${String(s % 60).padStart(2, "0")}`; }
 
-function drawLiqMap() {
+function drawLiqMap(mid) {
   const d = liq;
-  if (!d) { emptyChart("map", "map-box", "Loading"); emptyChart("cum", "cum-box", ""); return; }
-  const mids = Object.keys(d.markets);
-  if (!mapMarket || !d.markets[mapMarket]) mapMarket = mids[0] || null;
-  const sel = $("map-market"); sel.hidden = mids.length < 2;
-  if (mids.length > 1) {
-    sel.innerHTML = mids.map(id => `<option value="${esc(id)}" ${id === mapMarket ? "selected" : ""}>${esc(d.markets[id].symbol)}</option>`).join("");
-    sel.onchange = () => { mapMarket = sel.value; drawMarket(); };
-  }
-  drawRecentLiqs(d.recent || []);
-  const m = mapMarket ? d.markets[mapMarket] : null, mark = mapMarket ? d.marks[mapMarket] : null;
-  if (!m || !mark) {
-    emptyChart("map", "map-box", d.error ? "Couldn't scan positions. Retrying." : "Scanning open positions. This takes up to a minute after starting.");
-    emptyChart("cum", "cum-box", "");
+  drawRecentLiqs(d ? d.recent || [] : []);
+  const clear = text => { emptyChart("map", "map-box", text); emptyChart("cum", "cum-box", ""); $("map-legend").innerHTML = $("map-note").innerHTML = ""; };
+  if (!d || d.scanned_ms == null) {
+    clear(d && d.error ? "Couldn't scan positions. Retrying." : "Scanning open positions on REAL. This can take up to a minute.");
     $("clusters").innerHTML = `<div class="empty">Waiting for the first scan.</div>`;
-    $("map-legend").innerHTML = $("map-note").innerHTML = "";
     return;
   }
-  const sym = m.symbol || "", q = quoteOf(sym);
-  $("map-title").innerHTML = `Liquidation levels <span>${esc(sym)}</span>`;
-  const pos = m.positions.map(([side, l, s]) => ({ side, liq: l, size: s, value: s * l }));
-  const mine = (d.mine || []).filter(x => x.market_id === mapMarket);
+  const m = mid ? d.markets[mid] : null, mark = mid ? d.marks[mid] : null, sym = (S.markets[mid] || {}).symbol || "";
+  $("map-title").innerHTML = `Estimated liquidation levels <span>${esc(sym)}</span>`;
+  if (!m || !mark || !m.positions.length) {
+    clear("No open positions with a liquidation price in this market.");
+    $("clusters").innerHTML = `<div class="empty">None.</div>`;
+    return;
+  }
+  const q = quoteOf(sym);
+  // Positions already past their liquidation price are being liquidated right now; they don't
+  // belong on the "if price moves" curves, so they're counted separately.
+  const all = m.positions.map(([side, l, s]) => ({ side, liq: l, size: s, value: s * l }));
+  const pos = all.filter(p => p.side > 0 ? p.liq < mark : p.liq > mark), past = all.length - pos.length;
+  const mine = (d.mine || []).filter(x => x.market_id === mid);
   mapBars(pos, mark, mine, q);
   mapCumulative(pos, mark, mine, sym);
   $("map-legend").innerHTML = `<span><i class="sw" style="background:var(--long)"></i>Longs, liquidated as price falls</span>
@@ -796,8 +861,11 @@ function drawLiqMap() {
     ${mine.length ? `<span><svg width="10" height="12"><line x1="5" x2="5" y1="0" y2="12" stroke="${css("--ink")}" stroke-width="2" stroke-dasharray="3 2"/></svg>Your liquidation price</span>` : ""}`;
   const out = pos.filter(p => p.liq < mark * (1 - mapRange) || p.liq > mark * (1 + mapRange)).length;
   const share = m.long_size + m.short_size ? m.long_size / (m.long_size + m.short_size) * 100 : null;
-  $("map-note").innerHTML = `<span>${m.open} open positions</span>${ok(share) ? `<span>${pct(share, 0)} long by size</span>` : ""}
-    <span>${m.no_liq} without a liquidation price</span><span>${out} outside this range</span><span>Scanned ${d.scanned_ms ? ago(d.scanned_ms) + " ago" : "–"}</span>`;
+  $("map-note").innerHTML = [
+    `${m.open} open positions`, ok(share) ? `${pct(share, 0)} long by size` : "",
+    m.no_liq ? `${m.no_liq} without a liquidation price` : "", past ? `${past} already past their liquidation price` : "",
+    `${out} outside this range`, `Scanned ${ago(d.scanned_ms)} ago`, d.truncated ? "Partial scan: first 4,000 positions only" : "",
+  ].filter(Boolean).map(t => `<span>${esc(t)}</span>`).join("");
   drawClusters(pos, mark, q);
 }
 function mapScale(id, mark, m) {
@@ -825,13 +893,13 @@ function mapBars(pos, mark, mine, q) {
   pos.forEach(p => { if (p.liq < Sc.lo || p.liq >= Sc.hi) return; const k = B[Math.min(N - 1, Math.floor((p.liq - Sc.lo) / bw))];
     if (p.side > 0) { k.L += p.value; k.nl++; } else { k.S += p.value; k.ns++; } });
   const max = Math.max(1e-9, ...B.map(k => k.L + k.S)), sy = v => H - m.b - v / max * (H - m.t - m.b), g = [];
-  [0.5, 1].forEach(f => g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${sy(max * f)}" y2="${sy(max * f)}" stroke="${css("--grid")}"/>`,
-    `<text x="${m.l}" y="${sy(max * f) - 4}" font-size="11" fill="${css("--muted")}" ${FONT}>${compact(max * f)} ${esc(q)}</text>`));
+  [0.5, 1].forEach(f => g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${sy(max * f)}" y2="${sy(max * f)}" stroke="${css("--grid")}"/>`));
   g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}" stroke="${css("--line")}"/>`);
   const cw = (W - m.l - m.r) / N, w = Math.max(1, cw - 2);
   B.forEach((k, i) => { let y = H - m.b; const x = m.l + i * cw + 1;
     [["L", "--long"], ["S", "--short"]].forEach(([key, c]) => { if (!k[key]) return; const h = Math.max(2, H - m.b - sy(k[key]));
       g.push(`<path d="${topRound(x, y - h, w, h, Math.min(2.5, w / 2))}" fill="${css(c)}"/>`); y -= h + 2; }); });
+  [0.5, 1].forEach(f => g.push(`<text x="${m.l + 2}" y="${sy(max * f) - 4}" font-size="11" fill="${css("--ink-2")}" stroke="${css("--panel")}" stroke-width="3" paint-order="stroke" ${FONT}>${compact(max * f)} ${esc(q)}</text>`));
   mapAxis(g, Sc, mark, true);
   mapMarkers(g, Sc, mark, mine);
   g.push(`<text x="${Sc.sx(mark)}" y="${m.t - 8}" font-size="11.5" fill="${css("--ink")}" text-anchor="middle" ${FONT}>${px(mark)}</text>`);
@@ -940,27 +1008,31 @@ function drawDepth(mk) {
   };
   $("dhit").onmouseleave = () => { tip.style.display = "none"; $("dxh").setAttribute("visibility", "hidden"); };
 }
-// Average fill price for a market order that walks the book; null if the book runs out.
-function walk(levels, qty) { let left = qty, cost = 0; for (const [p, v] of levels) { const t = Math.min(left, v); cost += t * p; left -= t; if (left <= 1e-12) return cost / qty; } return null; }
+// Order sizes in the quote currency, so the table works for any market price.
+const ORDER_SIZES = [100, 500, 1000, 5000, 10000, 50000];
 function drawImpact(mk) {
+  const age = mk && mk.book_ms ? Date.now() - mk.book_ms : null;
+  const el = $("book-age");
+  el.textContent = ok(age) ? `Updated ${ago(mk.book_ms)} ago` : "";
+  el.classList.toggle("old", ok(age) && age > Math.max(3 * S.poll_seconds * 1000, 45000));
   if (!mk || !mk.bids.length || !mk.asks.length) { $("book-stats").innerHTML = ""; $("impact").innerHTML = `<div class="empty">No order book data.</div>`; return; }
   const bids = [...mk.bids].sort((a, b) => b[0] - a[0]), asks = [...mk.asks].sort((a, b) => a[0] - b[0]);
   const bb = bids[0][0], ba = asks[0][0], mid = (bb + ba) / 2, b = baseOf(mk.symbol), q = quoteOf(mk.symbol);
-  const bidTot = bids.reduce((a, x) => a + x[1], 0), askTot = asks.reduce((a, x) => a + x[1], 0);
+  const bidTot = bids.reduce((a, x) => a + x[1] * x[0], 0), askTot = asks.reduce((a, x) => a + x[1] * x[0], 0);
   $("book-stats").innerHTML = `<div class="k">Best bid / ask</div><div class="v">${px(bb)} / ${px(ba)}</div>
-    <div class="k">Spread</div><div class="v">${num(ba - bb, 2)} <span class="muted">${pct((ba - bb) / mid * 100, 3)}</span></div>
-    <div class="k">Book depth</div><div class="v">${size(+bidTot.toFixed(4))} bid / ${size(+askTot.toFixed(4))} ask <span class="muted">${esc(b)}</span></div>
+    <div class="k">Spread</div><div class="v">${ok(mk.tick_size) && mk.tick_size > 0 ? num(ba - bb, Math.min(8, Math.max(0, -Math.floor(Math.log10(mk.tick_size) + 1e-9)))) : px(ba - bb)} <span class="muted">${pct((ba - bb) / mid * 100, 3)}</span></div>
+    <div class="k">Book depth</div><div class="v">${compact(bidTot)} bid / ${compact(askTot)} ask <span class="muted">${esc(q)}</span></div>
     <div class="k">Taker fee</div><div class="v">${ok(mk.taker_fee) ? pct(mk.taker_fee * 100, 3) : "–"}</div>`;
   const fee = mk.taker_fee || 0;
-  const sizes = [0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5].filter(s => s * mid >= (mk.min_order_value || 0));
-  const cell = (avg, s, dir) => {
-    if (!ok(avg)) return `<td class="r muted hide-sm"></td><td class="r muted">Book too thin</td>`;
-    const slip = dir * (avg / mid - 1) * 100, cost = (slip / 100 + fee) * s * mid;
-    return `<td class="num r hide-sm">${px(avg)}</td><td class="num r">${pct(slip + fee * 100, 3)} <span class="muted">${num(cost)}</span></td>`;
+  const sizes = ORDER_SIZES.filter(v => v >= (mk.min_order_value || 0));
+  const cell = (r, value, dir) => {
+    if (!r) return `<td class="r muted hide-sm"></td><td class="r muted">Book too thin</td>`;
+    const slip = dir * (r.avg / mid - 1) * 100, cost = (slip / 100 + fee) * value;
+    return `<td class="num r hide-sm">${px(r.avg)}</td><td class="num r">${pct(slip + fee * 100, 3)} <span class="muted">${num(cost)}</span></td>`;
   };
-  $("impact").innerHTML = `<table><thead><tr><th>Size</th><th class="r hide-sm">Buy avg</th><th class="r">Buy cost</th><th class="r hide-sm">Sell avg</th><th class="r">Sell cost</th></tr></thead><tbody>${
-    sizes.map(s => `<tr><td class="num">${size(s)} ${esc(b)} <span class="muted hide-sm">${compact(s * mid)}</span></td>${cell(walk(asks, s), s, 1)}${cell(walk(bids, s), s, -1)}</tr>`).join("")}</tbody></table>
-    <div class="wi-note">Cost is slippage from the mid price plus the taker fee, shown as a percentage and in ${esc(q)}.</div>`;
+  $("impact").innerHTML = `<table><thead><tr><th>Order size</th><th class="r hide-sm">Buy avg</th><th class="r">Buy cost</th><th class="r hide-sm">Sell avg</th><th class="r">Sell cost</th></tr></thead><tbody>${
+    sizes.map(v => `<tr><td class="num">${compact(v)} ${esc(q)} <span class="muted hide-sm">${size(+(v / mid).toPrecision(3))} ${esc(b)}</span></td>${cell(R.walkQuote(asks, v), v, 1)}${cell(R.walkQuote(bids, v), v, -1)}</tr>`).join("")}</tbody></table>
+    <div class="wi-note">Cost is slippage from the mid price plus the taker fee, as a percentage and in ${esc(q)}. The book can change before an order arrives.</div>`;
 }
 
 // ---------------------------------------------------------------- wiring
@@ -971,7 +1043,7 @@ bindSeg("map-range", v => { mapRange = v; if (S) drawMarket(); });
 let resizeT; window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(draw, 120); });
 setInterval(() => {
   updateLive();
-  const mk = S && S.markets[firstMarketId()], cd = $("m-fund-cd");
+  const mk = S && S.markets[viewedMarket()], cd = $("m-fund-cd");
   if (cd && mk && mk.funding_time_ms) cd.textContent = countdown(Math.max(0, mk.funding_time_ms - Date.now()));
 }, 1000);
 setInterval(loadState, 3000);

@@ -12,7 +12,7 @@ import real_risk_monitor as rrm
 ACCT = "0x00000000000000000000000000000000000000000000000000000000000acc01"
 BTC = "0x03d9f492be9ec3289c0ecbd5b60e9df3c8c74bb5fd51f697a2b85f065f51a9d5"
 
-# Shape taken from a real mainnet /api/v1/positions/live response.
+# Shape taken from a mainnet /api/v1/positions/live response (account ID replaced).
 REAL_LONG = {
     "account_id": ACCT,
     "market_id": BTC,
@@ -302,17 +302,86 @@ class DashboardTests(unittest.TestCase):
         self.assertAlmostEqual(sum(f["pnl"] for f in perf["fills"]) + perf["funding"][0]["payment"], -0.628)
         self.assertAlmostEqual(perf["fills"][0]["fee"], -0.03)
 
-    def test_whatif_formula_matches_real(self):
-        # Liquidation: C + s*sig*(P - M) = m*s*P  ->  P = (C - sig*s*M) / (s*(m - sig)).
-        # Numbers from the user's live short on REAL: equity 44.95, 0.002 BTC, mark 86,062.83,
-        # REAL's estimated liquidation price 107,188.26, maintenance margin 1.25%.
-        C, s, M, sig, real_liq = 44.95, 0.002, 86062.83, -1, 107188.26
-        liq = lambda m, c=C, size=s: (c - sig * size * M) / (size * (m - sig))
-        self.assertLess(abs(liq(0.0125) / real_liq - 1), 0.0002)      # textbook formula within 0.02%
-        m_cal = sig + (C - sig * s * M) / (s * real_liq)              # what the page calibrates to
-        self.assertAlmostEqual(liq(m_cal), real_liq, places=6)
-        self.assertAlmostEqual(liq(m_cal, c=C + 20), 117063.65, delta=0.5)   # +20 USDT margin
-        self.assertGreater(liq(m_cal, size=0.001), liq(m_cal))                # smaller short -> further liq
+    def test_whatif_maths_in_node(self):
+        # The calculator maths lives in riskmath.js and is tested there, against the same code the page runs.
+        import shutil, subprocess, os
+        node = shutil.which("node")
+        if not node:
+            self.skipTest("Node.js not installed")
+        here = os.path.dirname(os.path.abspath(__file__))
+        out = subprocess.run([node, "test_riskmath.js"], cwd=here, capture_output=True, text=True, timeout=60)
+        self.assertEqual(out.returncode, 0, out.stdout + out.stderr)
+
+    def test_not_loaded_until_first_successful_update(self):
+        import dashboard as dash
+        mon, api, rec, _ = make_monitor()
+        api.fail = True                       # REAL unreachable from the start
+        d = dash.Dashboard(mon.cfg, mon)
+        quiet(mon.poll)
+        state = json.loads(json.dumps(d.state(), allow_nan=False))
+        self.assertFalse(state["loaded"])     # the page must not claim "No open positions"
+        self.assertFalse(state["status"]["ok"])
+        self.assertIn("boom", state["status"]["error"])
+        api.fail = False
+        api._paginate = lambda path, params, max_pages=50: []
+        api._get = lambda path, params=None, retries=3: {"data": []}
+        quiet(mon.poll)
+        d.refresh()
+        self.assertTrue(d.state()["loaded"])
+
+    def test_wrong_account_id_is_reported_per_account(self):
+        import dashboard as dash
+        cfg = rrm.load_config(None)
+        cfg["accounts"] = [ACCT, "0x" + "f" * 64]
+        cfg["status_every_minutes"] = 0
+        api = FakeApi()
+        good_account = api.account
+
+        def account(aid):
+            if aid == "0x" + "f" * 64:
+                raise rrm.ApiError("HTTP 404", 404, "not_found")
+            return good_account(aid)
+        api.account = account
+        api.accounts_for_address = lambda addr: [{"id": "0x" + "b" * 64}]
+        api._paginate = lambda path, params, max_pages=50: []
+        api._get = lambda path, params=None, retries=3: {"data": []}
+        mon = rrm.RiskMonitor(cfg, api, [], clock=Clock())
+        d = dash.Dashboard(cfg, mon)
+        quiet(mon.poll)
+        d.refresh()
+        state = d.state()
+        bad = next(a for a in state["accounts"] if a["id"] == "0x" + "f" * 64)
+        good = next(a for a in state["accounts"] if a["id"] == ACCT)
+        self.assertIn("wallet address", bad["error"])
+        self.assertIn("0x" + "b" * 64, bad["error"])
+        self.assertIsNone(good["error"])
+        self.assertEqual(good["equity"], 100.0)   # the good account still loads
+        self.assertTrue(state["status"]["ok"])
+
+    def test_history_is_fetched_incrementally(self):
+        d = self.make_dashboard()
+        calls = []
+        new_fill = {"account_id": ACCT, "trade_id": "99", "created_at_ms": 5, "market_id": BTC, "direction": "Long",
+                    "price": "1", "volume": "1", "realised_pnl": "0", "realised_pnl_attribution": {}}
+
+        def paginate(path, params, max_pages=50):
+            calls.append((path, max_pages))
+            return [new_fill] if path.endswith("/fills") else []
+        d.api._paginate = paginate
+        d.refresh_history([ACCT])
+        self.assertTrue(all(pages == 1 for _, pages in calls), calls)   # only the newest page after the first load
+        self.assertEqual([f["t"] for f in d.performance()["fills"]], [5, 2, 1])
+
+    def test_nan_from_api_becomes_none(self):
+        import dashboard as dash
+        self.assertIsNone(dash.f("NaN"))
+        self.assertIsNone(dash.f("Infinity"))
+        self.assertEqual(dash.f("1.5"), 1.5)
+
+    def test_performance_uses_reals_lifetime_total(self):
+        perf = self.make_dashboard().performance()
+        self.assertEqual(perf["account_realised_pnl"], None)   # FakeApi account has no realised_pnl
+        self.assertEqual(perf["truncated"], {"fills": False, "funding": False})
 
     def test_aggregate_hides_accounts_and_skips_unliquidatable(self):
         import dashboard as dash
@@ -329,6 +398,118 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(out["stale"], 1)
         self.assertEqual(sorted(p[0] for p in out["positions"]), [-1, 1])
         self.assertNotIn(ACCT, json.dumps(out))  # no account IDs leak into the map
+
+
+class SetupTests(unittest.TestCase):
+    def setUp(self):
+        import tempfile, os
+        self.dir = tempfile.mkdtemp()
+        self.path = os.path.join(self.dir, "config.json")
+
+    def run_prompt(self, answers, api):
+        import dashboard as dash
+        it = iter(answers)
+        with redirect_stdout(io.StringIO()) as out:
+            result = dash.ask_for_account(self.path, api, read=lambda _: next(it))
+        return result, out.getvalue()
+
+    class Api:
+        def __init__(self):
+            self.looked_up = []
+
+        def account(self, aid):
+            self.looked_up.append(aid)
+            if aid != "0x" + "c" * 64:
+                raise rrm.ApiError("HTTP 404", 404, "not_found")
+            return {}
+
+        def accounts_for_address(self, addr):
+            self.looked_up.append(addr)
+            return [{"id": "0x" + "c" * 64}] if addr == "0x" + "d" * 64 else []
+
+    def test_private_key_and_phrase_are_refused_and_never_sent(self):
+        api = self.Api()
+        key = "iotaprivkey1qq" + "x" * 50
+        phrase = "abandon ability able about above absent absorb abstract absurd abuse access accident"
+        result, out = self.run_prompt([key, phrase, "0x" + "c" * 64], api)
+        self.assertIn("PRIVATE KEY", out)
+        self.assertIn("RECOVERY PHRASE", out)
+        self.assertNotIn(key, api.looked_up)
+        self.assertEqual(result, "0x" + "c" * 64)
+        with open(self.path) as fh:
+            self.assertNotIn("privkey", fh.read())
+
+    def test_wallet_address_resolves_to_account(self):
+        result, out = self.run_prompt(["0x" + "d" * 64], self.Api())
+        self.assertIn("wallet address", out)
+        self.assertEqual(result, "0x" + "c" * 64)
+
+    def test_unknown_id_asks_again(self):
+        result, out = self.run_prompt(["0x" + "e" * 64, "not an id", "0x" + "c" * 64], self.Api())
+        self.assertIn("no account with that ID", out)
+        self.assertIn("doesn't look like an Account ID", out)
+        self.assertEqual(result, "0x" + "c" * 64)
+
+    def test_config_typo_gives_readable_error(self):
+        with open(self.path, "w") as fh:
+            fh.write('{\n  "accounts": ["0xabc"],\n}\n')
+        with self.assertRaises(ValueError) as ctx:
+            rrm.load_config(self.path)
+        self.assertRegex(str(ctx.exception), r"line [23]")   # Python versions point at the comma or the brace
+        self.assertIn("comma", str(ctx.exception))
+
+
+class ServerTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        import threading
+        import dashboard as dash
+        mon, api, rec, _ = make_monitor()
+        api._paginate = lambda path, params, max_pages=50: []
+        api._get = lambda path, params=None, retries=3: {"data": []}
+        cls.server = dash.LocalServer(("127.0.0.1", 0), dash.make_handler(dash.Dashboard(mon.cfg, mon)))
+        cls.port = cls.server.server_address[1]
+        threading.Thread(target=cls.server.serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.shutdown()
+        cls.server.server_close()
+
+    def get(self, path, host=None):
+        import http.client
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        c.request("GET", path, headers={"Host": host or f"127.0.0.1:{self.port}"})
+        r = c.getresponse()
+        return r.status, r.read()
+
+    def test_serves_page_maths_and_fonts(self):
+        self.assertEqual(self.get("/")[0], 200)
+        status, body = self.get("/riskmath.js")
+        self.assertEqual(status, 200)
+        self.assertIn(b"liqPrice", body)
+        self.assertEqual(self.get("/fonts/barlow-latin-400-normal.woff2")[0], 200)
+        self.assertEqual(self.get("/api/state")[0], 200)
+
+    def test_rejects_other_hosts_and_paths(self):
+        self.assertEqual(self.get("/api/state", host="evil.example")[0], 403)     # DNS rebinding
+        self.assertEqual(self.get("/fonts/../dashboard.py")[0], 404)
+        self.assertEqual(self.get("/config.json")[0], 404)
+        self.assertEqual(self.get("/dashboard.py")[0], 404)
+
+    def test_windows_doesnt_share_the_port(self):
+        import os
+        import dashboard as dash
+        self.assertEqual(dash.LocalServer.allow_reuse_address, os.name != "nt")
+
+
+class ApiErrorTests(unittest.TestCase):
+    def test_certificate_errors_are_recognised(self):
+        import ssl, urllib.error
+        err = urllib.error.URLError(ssl.SSLCertVerificationError(1, "certificate verify failed"))
+        self.assertTrue(rrm._is_cert_error(err))
+        self.assertFalse(rrm._is_cert_error(urllib.error.URLError("timed out")))
+        self.assertIn("Install Certificates", rrm.CERT_HELP)
 
 
 if __name__ == "__main__":
