@@ -24,6 +24,7 @@ import argparse
 import json
 import logging
 import os
+import re
 import ssl
 import sys
 import threading
@@ -35,7 +36,7 @@ from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 NETWORKS = {
     "mainnet": "https://indexer.api.real.xyz",
@@ -169,7 +170,10 @@ def classify(distance: Optional[float], thresholds: Dict[str, float]) -> str:
 def next_tier(
     distance: Optional[float], previous: str, thresholds: Dict[str, float], buffer: float
 ) -> str:
-    """Classify with hysteresis: getting worse is immediate, recovering needs a buffer."""
+    """Classify with hysteresis: getting worse is immediate, recovering needs a buffer.
+    An unknown distance never changes the tier: no news is not good news."""
+    if distance is None:
+        return previous
     raw = classify(distance, thresholds)
     if SEVERITY[raw] >= SEVERITY[previous]:
         return raw
@@ -433,6 +437,7 @@ class PositionState:
     last_alert_s: float = 0.0
     direction: str = ""
     stale_alerted: bool = False
+    unknown_alerted: bool = False
 
 
 class RiskMonitor:
@@ -609,6 +614,19 @@ class RiskMonitor:
             st.stale_alerted = False
             self.notify(Alert("ok", f"Price feed back for {v.symbol}", [], self.position_fields(v)))
 
+        # No liquidation price from REAL: the risk can't be measured, which is not the same as safe.
+        if v.distance is None:
+            if not st.unknown_alerted:
+                st.unknown_alerted = True
+                self.notify(Alert("warning", f"Liquidation price unavailable for {v.symbol} {v.direction}",
+                                  ["REAL isn't returning a liquidation price for this position, so its risk can't be "
+                                   "measured right now. Check it on REAL."], self.position_fields(v)))
+            return
+        if st.unknown_alerted:
+            st.unknown_alerted = False
+            self.notify(Alert("info", f"Liquidation price available again for {v.symbol} {v.direction}", [],
+                              self.position_fields(v)))
+
         # Stale computed values.
         if v.refreshed_at_ms and not v.fresh:
             age_min = (now_ms() - int(v.refreshed_at_ms)) / 60000
@@ -625,7 +643,7 @@ class RiskMonitor:
         elif SEVERITY[new] < SEVERITY[old]:
             st.last_alert_s = now
             if new == "ok":
-                self.notify(Alert("ok", f"{v.symbol} {v.direction} back to safe", [f"Recovered from {old}."], self.position_fields(v)))
+                self.notify(Alert("ok", f"{v.symbol} {v.direction} back outside alert levels", [f"Recovered from {old}."], self.position_fields(v)))
             else:
                 self.notify(Alert(new, f"{v.symbol} {v.direction} improved: {old} → {new}", [], self.position_fields(v)))
         elif new != "ok":
@@ -791,7 +809,37 @@ def load_config(path: Optional[str]) -> Dict[str, Any]:
     return cfg
 
 
+HEX_ID_RE = re.compile(r"^0x[0-9a-fA-F]{64}$")
+
+
+def looks_secret(value: str) -> Optional[str]:
+    """A warning if the text looks like a private key or recovery phrase, else None."""
+    low = value.lower()
+    if "privkey" in low:
+        return "That's a PRIVATE KEY. Don't paste it anywhere. Anyone who has it can take your funds."
+    if len(value.split()) >= 6:
+        return "That looks like a RECOVERY PHRASE. Don't paste it anywhere. Anyone who has it can take your funds."
+    return None
+
+
+def account_id_problem(value: Any) -> Optional[str]:
+    """Why a configured account ID can't be used, or None if it looks fine."""
+    if not isinstance(value, str) or not value.strip():
+        return "is missing"
+    secret = looks_secret(value)
+    if secret:
+        return "looks like a private key or recovery phrase. Remove it from your config now and use your public Account ID"
+    if not HEX_ID_RE.match(value.strip()):
+        return "isn't a valid Account ID (it should be 0x followed by 64 letters and numbers)"
+    return None
+
+
 def validate_config(cfg: Dict[str, Any]) -> None:
+    for i, entry in enumerate(cfg.get("accounts") or [], 1):
+        aid = entry if isinstance(entry, str) else entry.get("id") if isinstance(entry, dict) else None
+        problem = account_id_problem(aid)
+        if problem:
+            raise ValueError(f"Account {i} in your settings: the ID {problem}.")
     t = cfg["thresholds_pct"]
     if not (t["warning"] > t["danger"] > t["critical"] > 0):
         raise ValueError("thresholds_pct must satisfy warning > danger > critical > 0")

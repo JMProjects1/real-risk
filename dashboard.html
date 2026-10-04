@@ -488,7 +488,9 @@ function drawRisk(p, mk) {
       <div class="kv">${mk ? `<div class="k">${esc(mk.symbol)} mark</div><div class="v">${px(mk.mark)}</div>` : ""}</div>`;
     return;
   }
-  const z = ZONES[p.tier] || ZONES.ok;
+  // While data is delayed, grey the headline out so an old "safe" number can't reassure anyone.
+  const delayed = staleFor() || (!S.status.ok && S.status.error);
+  const z = delayed ? { c: "--muted", label: "Data delayed, figures may be out of date" } : ZONES[p.tier] || ZONES.ok;
   const big = p.no_liq ? `<span style="font-size:30px">No liq. price</span>` : ok(p.distance) ? `${num(p.distance)}<small>%</small>` : "–";
   const move = p.liq ? p.liq - p.mark : null;
   el.innerHTML = `
@@ -496,7 +498,7 @@ function drawRisk(p, mk) {
     <div class="risk-mid">
       <div><div class="muted" style="font-size:12px">Distance to liquidation</div>
         <div class="big" style="color:${css(z.c)}">${big}</div>
-        <div class="zone" style="color:${css(z.c)}">${zoneIcon(p.tier)}${z.label}</div></div>
+        <div class="zone" style="color:${css(z.c)}">${zoneIcon(delayed ? "stale" : p.tier)}${z.label}</div></div>
       <svg class="gauge" id="gauge" role="img" aria-label="Distance to liquidation gauge"></svg>
     </div>
     <div class="kv">

@@ -173,7 +173,39 @@ class MonitorTests(unittest.TestCase):
         api.positions = [position(100, 80)]  # 20% -> back to ok
         quiet(mon.poll)
         self.assertEqual(rec.alerts[-1].level, "ok")
-        self.assertIn("back to safe", rec.alerts[-1].title)
+        self.assertIn("back outside alert levels", rec.alerts[-1].title)
+
+    def test_missing_liquidation_price_is_not_an_all_clear(self):
+        mon, api, rec, _ = make_monitor()
+        api.positions = [position(100, 97)]            # 3% away: critical
+        quiet(mon.poll)
+        self.assertEqual(rec.alerts[-1].level, "critical")
+        api.positions = [position(100, None)]          # REAL stops returning a liquidation price
+        quiet(mon.poll)
+        quiet(mon.poll)
+        titles = rec.titles()
+        self.assertFalse(any("outside alert levels" in t or "improved" in t for t in titles), titles)
+        self.assertEqual(sum("unavailable" in t for t in titles), 1)    # warned once, not every poll
+        self.assertEqual(mon.states[(ACCT, BTC)].tier, "critical")      # tier unchanged
+        api.positions = [position(100, 97)]            # it comes back, still critical
+        quiet(mon.poll)
+        self.assertIn("available again", rec.titles()[-1])
+        self.assertFalse(any("outside alert levels" in t for t in rec.titles()))
+
+    def test_unknown_distance_keeps_tier(self):
+        t = {"warning": 15, "danger": 8, "critical": 4}
+        for tier in ("ok", "warning", "danger", "critical"):
+            self.assertEqual(rrm.next_tier(None, tier, t, 1.0), tier)
+
+    def test_configured_ids_are_checked(self):
+        base = rrm.load_config(None)
+        for bad, msg in [({"label": "x"}, "missing"), ("iotaprivkey1qqq", "private key"),
+                         ("0x1234", "valid Account ID"), ("word " * 12, "recovery phrase")]:
+            cfg = dict(base, accounts=[bad])
+            with self.assertRaises(ValueError) as ctx:
+                rrm.validate_config(cfg)
+            self.assertIn(msg, str(ctx.exception))
+        rrm.validate_config(dict(base, accounts=[ACCT, {"id": ACCT, "label": "Main"}]))
 
     def test_short_side(self):
         mon, api, rec, _ = make_monitor()
@@ -371,6 +403,19 @@ class DashboardTests(unittest.TestCase):
         d.refresh_history([ACCT])
         self.assertTrue(all(pages == 1 for _, pages in calls), calls)   # only the newest page after the first load
         self.assertEqual([f["t"] for f in d.performance()["fills"]], [5, 2, 1])
+
+    def test_history_gap_checked_per_account(self):
+        import dashboard as dash
+        mon, api, rec, _ = make_monitor()
+        d = dash.Dashboard(mon.cfg, mon)
+        other = "0x" + "9" * 64
+        old = {"account_id": ACCT, "trade_id": "1", "direction": "Long", "created_at_ms": 1}
+        d.fills[(ACCT, "1Long")] = old
+        d.history_loaded = True
+        busy = [{"account_id": other, "trade_id": str(i), "direction": "Long", "created_at_ms": 10 + i} for i in range(100)]
+        d.api._paginate = lambda path, params, max_pages=50: [old] if ACCT in path else busy if other in path else []
+        d.refresh_history([ACCT, other])
+        self.assertFalse(d.history_loaded)   # the busy account had a full page of unseen fills: reload next time
 
     def test_nan_from_api_becomes_none(self):
         import dashboard as dash

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.1
+
+Fixes from a re-check of 1.1.0.
+
+- Alert monitor: if REAL stops returning a position's liquidation price, it no longer sends a false "back to safe". It keeps the current alert level and warns once that the liquidation price is unavailable. "Back to safe" is now "back outside alert levels".
+- `start-dashboard.bat` says it's checking for Python, since the first run can download Python and take a minute.
+- Account IDs from `config.json` or `--account` get the same checks as the prompt, and a missing ID gives a clear message.
+- The dashboard greys out the risk figures while data is delayed.
+- A failed liquidation-map scan retries once a minute, not every 5 seconds.
+- Trade history checks each account separately for missed fills.
+
 ## 1.1.0
 
 Fixes from an independent pre-release review.

@@ -147,7 +147,7 @@ class MarketScanner:
             now = time.time()
             if now >= self.wanted_until:                 # nobody is looking at the map
                 continue
-            if self.data["scanned_ms"] is not None and now - last < SCAN_SECONDS:
+            if last and now - last < SCAN_SECONDS:   # also spaces out retries after a failed scan
                 continue
             last = now
             try:
@@ -320,8 +320,11 @@ class Dashboard:
         pages = HISTORY_MAX_PAGES if full else 1
         try:
             fills: List[dict] = []
+            per_account: Dict[str, List[dict]] = {}
             for aid in account_ids:
-                fills.extend(self.api._paginate(f"/api/v1/accounts/{aid}/fills", [("p[o]", "desc"), ("p[s]", "100")], pages))
+                page = self.api._paginate(f"/api/v1/accounts/{aid}/fills", [("p[o]", "desc"), ("p[s]", "100")], pages)
+                per_account[aid] = page
+                fills.extend(page)
             funding = self.api._paginate("/api/v1/funding-payments", [("f[account_ids]", ",".join(account_ids)),
                                                                         ("p[o]", "desc"), ("p[s]", "100")], pages)
         except rrm.ApiError as e:
@@ -334,8 +337,8 @@ class Dashboard:
                 per_account = [sum(1 for x in fills if fill_key(x)[0] == a.lower()) for a in account_ids]
                 self.history_truncated = {"fills": max(per_account, default=0) >= HISTORY_MAX_PAGES * 100,
                                           "funding": len(funding) >= HISTORY_MAX_PAGES * 100}
-            elif fills and not any(fill_key(x) in self.fills for x in fills) and len(fills) >= 100:
-                self.history_loaded = False   # more than a page arrived since last check: reload everything next time
+            elif any(len(page) >= 100 and not any(fill_key(x) in self.fills for x in page) for page in per_account.values()):
+                self.history_loaded = False   # an account got more than a page of new fills: reload everything next time
             for x in fills:
                 self.fills[fill_key(x)] = x
             for x in funding:
@@ -608,13 +611,7 @@ Paste your REAL Account ID and press Enter.
 """
 
 
-def looks_secret(value: str) -> Optional[str]:
-    low = value.lower()
-    if "privkey" in low or low.startswith("suiprivkey") or low.startswith("iotaprivkey"):
-        return "That's a PRIVATE KEY. Don't paste it anywhere. Anyone who has it can take your funds."
-    if len(value.split()) >= 6:
-        return "That looks like a RECOVERY PHRASE. Don't paste it anywhere. Anyone who has it can take your funds."
-    return None
+looks_secret = rrm.looks_secret
 
 
 def save_account(config_path: str, account_id: str) -> None:

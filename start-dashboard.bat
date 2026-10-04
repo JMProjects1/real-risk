@@ -15,6 +15,7 @@ if not exist "%~dp0dashboard.py" (
 
 rem Find a working Python. "py" comes with the Python install manager; "python" can be
 rem a Microsoft Store placeholder, so each one is only used if it actually runs.
+echo Checking for Python (the first run can take a minute)...
 set "PY="
 py -3 --version >nul 2>&1 && set "PY=py -3"
 if not defined PY python --version >nul 2>&1 && set "PY=python"
