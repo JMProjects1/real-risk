@@ -1,0 +1,26 @@
+{
+  "_comment": "Copy this to config.json and fill in your account ID. Keys starting with _ are ignored.",
+
+  "network": "mainnet",
+
+  "accounts": [
+    { "id": "0xYOUR_TRADING_ACCOUNT_ID", "label": "Main" }
+  ],
+
+  "_webhook_note": "Paste your Discord webhook URL here, or leave blank and set the REAL_DISCORD_WEBHOOK environment variable instead.",
+  "discord_webhook_url": "",
+
+  "_mention_note": "Pinged on danger/critical/liquidation alerts. Your user ID in the form <@123456789012345678>, or leave blank.",
+  "mention": "",
+
+  "poll_seconds": 15,
+
+  "thresholds_pct": { "warning": 15, "danger": 8, "critical": 4 },
+  "repeat_minutes": { "warning": 0, "danger": 30, "critical": 5 },
+  "recovery_buffer_pct": 1.0,
+
+  "notify_position_changes": true,
+  "stale_data_minutes": 2,
+  "api_down_alert_minutes": 3,
+  "status_every_minutes": 10
+}

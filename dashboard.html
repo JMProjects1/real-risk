@@ -1,0 +1,984 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>REAL Risk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #151b26;
+  --panel: #1c2330;
+  --panel-2: #242d3c;
+  --line: #2b3547;
+  --grid: #252f40;
+  --ink: #e6ebf2;
+  --ink-2: #a9b3c4;
+  --muted: #7b879b;
+  --accent: #6ea8fe;
+  --ok: #34c48b;
+  --warning: #e5bd47;
+  --danger: #f08d43;
+  --critical: #ef5a5f;
+  --gain: #34c48b;
+  --loss: #f0666d;
+  --long: #3987e5;
+  --short: #d55181;
+  --r: 6px;
+  --font: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --num: "Barlow Semi Condensed", "Barlow", system-ui, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); }
+body { font-family: var(--font); font-size: 14px; line-height: 1.45; font-variant-numeric: tabular-nums; }
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[hidden] { display: none !important; }
+.gain { color: var(--gain); } .loss { color: var(--loss); } .muted { color: var(--muted); }
+
+/* Header */
+.top { border-bottom: 1px solid var(--line); background: var(--bg); position: sticky; top: 0; z-index: 5; }
+.top-in { max-width: 1360px; margin: 0 auto; padding: 0 24px; height: 56px; display: flex; align-items: center; gap: 32px; }
+.brand { font-weight: 600; font-size: 17px; letter-spacing: .01em; white-space: nowrap; }
+.tabs { display: flex; gap: 24px; height: 100%; }
+.tabs a { display: flex; align-items: center; color: var(--muted); text-decoration: none; font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs a:hover { color: var(--ink-2); }
+.tabs a[aria-current="page"] { color: var(--ink); border-bottom-color: var(--accent); }
+.live { margin-left: auto; display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.dot.on { background: var(--ok); }
+.dot.off { background: var(--critical); }
+.banner { display: none; background: rgba(239,90,95,.12); border-bottom: 1px solid rgba(239,90,95,.4); color: var(--ink); font-size: 13px; }
+.banner.show { display: block; }
+.banner div { max-width: 1360px; margin: 0 auto; padding: 8px 24px; }
+
+.wrap { max-width: 1360px; margin: 0 auto; padding: 20px 24px 48px; }
+.grid { display: grid; gap: 16px; margin-bottom: 16px; }
+.g-hero { grid-template-columns: 340px minmax(0, 1fr); }
+.g-hero > .panel:last-child { display: flex; flex-direction: column; }
+.g-hero .h-price { flex: 1; min-height: 300px; height: auto; }
+.g-2-1 { grid-template-columns: 1.6fr 1fr; align-items: start; }
+.g-1-1 { grid-template-columns: 1fr 1fr; align-items: start; }
+
+/* Panels */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; min-width: 0; }
+.ph { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; min-height: 28px; }
+.ph h2 { font-size: 14px; font-weight: 600; margin: 0 auto 0 0; }
+.ph h2 span { color: var(--muted); font-weight: 400; }
+.stack > .panel + .panel { margin-top: 16px; }
+
+/* KPI strip */
+.kpis { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); margin-bottom: 16px; }
+.kpi { padding: 12px 16px; border-left: 1px solid var(--line); min-width: 0; }
+.kpi:first-child { border-left: 0; }
+.kpi .k { color: var(--muted); font-size: 12px; }
+.kpi .v { font-family: var(--num); font-size: 23px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi .v small { font-family: var(--font); font-size: 12px; color: var(--muted); font-weight: 400; margin-left: 4px; }
+
+/* Segmented buttons */
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; flex: none; }
+.seg button { background: transparent; border: 0; padding: 4px 10px; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--panel-2); color: var(--ink); }
+.textbtn { background: none; border: 0; color: var(--accent); cursor: pointer; font-size: 13px; padding: 2px 0; text-decoration: none; }
+
+/* Position picker */
+.picker { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.picker:empty { display: none; }
+.picker button { display: flex; gap: 8px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; cursor: pointer; }
+.picker button[aria-pressed="true"] { border-color: var(--ink-2); background: var(--panel-2); }
+
+/* Risk panel */
+.risk-top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 14px; }
+.risk-top b { font-weight: 600; font-size: 15px; }
+.side { font-size: 12px; font-weight: 600; }
+.side.Long { color: var(--gain); } .side.Short { color: var(--loss); }
+.risk-mid { display: grid; grid-template-columns: 1fr 64px; gap: 12px; align-items: stretch; margin-bottom: 14px; }
+.big { font-family: var(--num); font-weight: 600; font-size: 46px; line-height: 1; margin: 6px 0 8px; }
+.big small { font-size: 22px; font-weight: 500; }
+.zone { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; }
+.gauge { width: 64px; height: 150px; }
+
+/* Key/value rows */
+.kv { display: grid; grid-template-columns: 1fr auto; }
+.kv > div { padding: 7px 0; border-top: 1px solid var(--grid); }
+.kv > .k { color: var(--muted); }
+.kv > .v { text-align: right; font-family: var(--num); font-size: 15px; padding-left: 12px; white-space: nowrap; }
+
+/* Charts */
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: 100%; }
+.h-price { height: 340px; }
+.h-pnl { height: 280px; }
+.h-map { height: 290px; }
+.h-cum { height: 150px; }
+.h-depth { height: 260px; }
+.legend { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 8px; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; flex: none; }
+.tip { position: absolute; pointer-events: none; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 7px 9px;
+       font-size: 12.5px; white-space: nowrap; display: none; z-index: 3; box-shadow: 0 6px 16px rgba(0,0,0,.3); }
+.tip .n { font-family: var(--num); font-size: 16px; }
+.sub { font-size: 13px; color: var(--ink-2); font-weight: 600; margin: 16px 0 4px; }
+
+/* Tables */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; color: var(--muted); font-weight: 400; font-size: 12px; padding: 0 10px 6px 0; white-space: nowrap; }
+td { padding: 6px 10px 6px 0; border-top: 1px solid var(--grid); white-space: nowrap; }
+th:last-child, td:last-child { padding-right: 0; }
+.r { text-align: right; }
+td.num { font-family: var(--num); font-size: 14px; }
+.scroll { max-height: 420px; overflow: auto; }
+#wi-body, #impact, #orders, #fills, #clusters, #recent-liqs { overflow-x: auto; }
+.empty { color: var(--muted); padding: 8px 0; }
+.more { margin-top: 10px; }
+
+/* What-if */
+.wi-inputs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+.wi-inputs label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.inbox { display: flex; align-items: center; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; }
+.inbox:focus-within { border-color: var(--accent); }
+.inbox input { flex: 1; min-width: 0; background: none; border: 0; padding: 7px 9px; font-family: var(--num); font-size: 15px; outline: none; }
+.inbox span { color: var(--muted); font-size: 12px; padding-right: 9px; }
+input[type=range] { width: 100%; margin: 8px 0 0; accent-color: var(--accent); }
+.wi-note { color: var(--muted); font-size: 12px; margin-top: 12px; }
+
+@media (max-width: 1100px) {
+  .g-hero, .g-2-1, .g-1-1 { grid-template-columns: 1fr; }
+  .kpis { grid-auto-flow: row; grid-template-columns: repeat(3, 1fr); }
+  .kpi { border-top: 1px solid var(--line); }
+  .kpi:nth-child(-n+3) { border-top: 0; }
+  .kpi:nth-child(3n+1) { border-left: 0; }
+}
+@media (max-width: 680px) {
+  .top-in { height: auto; flex-wrap: wrap; gap: 0 16px; padding: 10px 16px 0; }
+  .tabs { order: 3; width: 100%; height: 40px; gap: 20px; }
+  .wrap { padding: 16px; }
+  .kpis { grid-template-columns: 1fr 1fr; }
+  .kpi:nth-child(n) { border-left: 0; border-top: 1px solid var(--line); }
+  .kpi:nth-child(-n+2) { border-top: 0; }
+  .kpi:nth-child(even) { border-left: 1px solid var(--line); }
+  .wi-inputs { grid-template-columns: 1fr; }
+  .kpi { padding: 10px 12px; }
+  .kpi .v { font-size: 19px; }
+  .kpi .v small { font-size: 11px; }
+  .h-price { height: 260px; } .h-map { height: 230px; }
+  .hide-sm { display: none; }
+  table { font-size: 12.5px; }
+  td, th { padding-right: 8px; }
+  td.num { font-size: 13px; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand">REAL Risk</div>
+    <nav class="tabs" aria-label="Sections">
+      <a href="#positions" data-view="positions">Positions</a>
+      <a href="#performance" data-view="performance">Performance</a>
+      <a href="#market" data-view="market">Market</a>
+    </nav>
+    <div class="live" id="live"><span class="dot"></span><span>Connecting</span></div>
+  </div>
+</header>
+<div class="banner" id="banner" role="alert"><div id="banner-text"></div></div>
+
+<div class="wrap">
+
+<!-- ============================ Positions ============================ -->
+<main id="view-positions">
+  <section class="kpis" aria-label="Account">
+    <div class="kpi"><div class="k">Equity</div><div class="v" id="k-equity">–</div></div>
+    <div class="kpi"><div class="k">Available</div><div class="v" id="k-available">–</div></div>
+    <div class="kpi"><div class="k">Unrealised PnL</div><div class="v" id="k-upnl">–</div></div>
+    <div class="kpi"><div class="k">Margin used</div><div class="v" id="k-margin">–</div></div>
+    <div class="kpi"><div class="k">Leverage</div><div class="v" id="k-lev">–</div></div>
+  </section>
+
+  <div class="picker" id="picker"></div>
+
+  <div class="grid g-hero">
+    <section class="panel" id="risk"></section>
+    <section class="panel">
+      <div class="ph"><h2 id="price-title">Price</h2>
+        <div class="seg" id="price-range" role="group" aria-label="Time range">
+          <button data-v="900000">15m</button><button data-v="3600000" aria-pressed="true">1h</button><button data-v="21600000">6h</button><button data-v="0">All</button>
+        </div>
+      </div>
+      <div class="chart h-price" id="price-box"><svg id="price"></svg><div class="tip" id="price-tip"></div></div>
+      <div class="legend" id="price-legend"></div>
+    </section>
+  </div>
+
+  <div class="grid g-2-1">
+    <section class="panel" id="whatif">
+      <div class="ph"><h2>What-if</h2><button class="textbtn" id="wi-reset" type="button">Reset</button></div>
+      <div id="wi-body"></div>
+    </section>
+    <div class="stack">
+      <section class="panel"><div class="ph"><h2>Open orders</h2></div><div id="orders"></div></section>
+      <section class="panel"><div class="ph"><h2>Latest fills</h2><a class="textbtn" href="#performance">Full history</a></div><div id="fills"></div></section>
+    </div>
+  </div>
+</main>
+
+<!-- ============================ Performance ============================ -->
+<main id="view-performance" hidden>
+  <section class="kpis" aria-label="Performance">
+    <div class="kpi"><div class="k">Net realised PnL</div><div class="v" id="p-net">–</div></div>
+    <div class="kpi"><div class="k">Trading PnL</div><div class="v" id="p-trade">–</div></div>
+    <div class="kpi"><div class="k">Fees</div><div class="v" id="p-fees">–</div></div>
+    <div class="kpi"><div class="k">Funding</div><div class="v" id="p-funding">–</div></div>
+    <div class="kpi"><div class="k">Volume</div><div class="v" id="p-volume">–</div></div>
+    <div class="kpi"><div class="k">Win rate</div><div class="v" id="p-win">–</div></div>
+  </section>
+  <section class="panel" style="margin-bottom:16px">
+    <div class="ph"><h2>Cumulative realised PnL <span>after fees and funding</span></h2>
+      <div class="seg" id="pnl-range" role="group" aria-label="Time range">
+        <button data-v="86400000">24h</button><button data-v="604800000">7d</button><button data-v="2592000000">30d</button><button data-v="0" aria-pressed="true">All</button>
+      </div>
+    </div>
+    <div class="chart h-pnl" id="pnl-box"><svg id="pnl"></svg><div class="tip" id="pnl-tip"></div></div>
+  </section>
+  <div class="grid g-2-1">
+    <section class="panel"><div class="ph"><h2>Trade history <span id="hist-count"></span></h2></div><div class="scroll" id="history"></div></section>
+    <section class="panel"><div class="ph"><h2>Funding payments</h2></div><div class="scroll" id="funding"></div></section>
+  </div>
+</main>
+
+<!-- ============================ Market ============================ -->
+<main id="view-market" hidden>
+  <section class="kpis" aria-label="Market">
+    <div class="kpi"><div class="k">Mark price</div><div class="v" id="m-mark">–</div></div>
+    <div class="kpi"><div class="k">24h change</div><div class="v" id="m-change">–</div></div>
+    <div class="kpi"><div class="k">24h range</div><div class="v" id="m-range">–</div></div>
+    <div class="kpi"><div class="k">24h volume</div><div class="v" id="m-volume">–</div></div>
+    <div class="kpi"><div class="k">Open interest</div><div class="v" id="m-oi">–</div></div>
+    <div class="kpi"><div class="k">Funding rate, next in</div><div class="v" id="m-funding">–</div></div>
+  </section>
+
+  <section class="panel" style="margin-bottom:16px">
+    <div class="ph"><h2 id="map-title">Liquidation levels</h2>
+      <select id="map-market" aria-label="Market" hidden></select>
+      <div class="seg" id="map-range" role="group" aria-label="Price range">
+        <button data-v="0.05">±5%</button><button data-v="0.1" aria-pressed="true">±10%</button><button data-v="0.25">±25%</button>
+      </div>
+    </div>
+    <div class="chart h-map" id="map-box"><svg id="map"></svg><div class="tip" id="map-tip"></div></div>
+    <div class="sub">Cumulative from current price</div>
+    <div class="chart h-cum" id="cum-box"><svg id="cum"></svg><div class="tip" id="cum-tip"></div></div>
+    <div class="legend" id="map-legend"></div>
+    <div class="legend" id="map-note"></div>
+  </section>
+
+  <div class="grid g-1-1">
+    <section class="panel">
+      <div class="ph"><h2>Order book depth</h2></div>
+      <div class="chart h-depth" id="depth-box"><svg id="depth"></svg><div class="tip" id="depth-tip"></div></div>
+      <div class="legend"><span><i class="sw" style="background:var(--long)"></i>Bids</span><span><i class="sw" style="background:var(--short)"></i>Asks</span></div>
+    </section>
+    <section class="panel">
+      <div class="ph"><h2>Market order cost</h2></div>
+      <div id="book-stats" class="kv" style="margin-bottom:14px"></div>
+      <div id="impact"></div>
+    </section>
+  </div>
+
+  <div class="grid g-1-1">
+    <section class="panel"><div class="ph"><h2>Largest liquidation levels</h2></div><div class="scroll" id="clusters"></div></section>
+    <section class="panel"><div class="ph"><h2>Recent liquidations</h2></div><div class="scroll" id="recent-liqs"></div></section>
+  </div>
+</main>
+</div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const ZONES = {
+  ok: { c: "--ok", label: "Safe" }, warning: { c: "--warning", label: "Warning" },
+  danger: { c: "--danger", label: "Danger" }, critical: { c: "--critical", label: "Critical" },
+  stale: { c: "--muted", label: "Price stale" },
+};
+const FONT = `font-family="Barlow, sans-serif"`;
+
+// ---------------------------------------------------------------- formatting
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const ok = v => v != null && isFinite(v);
+function num(v, d = 2) { return ok(v) ? v.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d }).replace("-", "−") : "–"; }
+function px(v) { if (!ok(v)) return "–"; const a = Math.abs(v); return num(v, a >= 1000 ? 2 : a >= 1 ? 4 : 6); }
+function sgn(v, d = 2) { if (!ok(v)) return "–"; const r = Number(v.toFixed(d)); return (r > 0 ? "+" : r < 0 ? "−" : "") + num(Math.abs(v), d); }
+function pct(v, d = 2) { return ok(v) ? num(v, d) + "%" : "–"; }
+function spct(v, d = 2) { return ok(v) ? sgn(v, d) + "%" : "–"; }
+function cls(v) { return !ok(v) || Math.abs(v) < 1e-9 ? "" : v > 0 ? "gain" : "loss"; }
+function size(v) { return ok(v) ? String(+v.toFixed(8)) : "–"; }
+function compact(v) {
+  if (!ok(v)) return "–"; const a = Math.abs(v);
+  return a >= 1e9 ? num(v / 1e9, 2) + "B" : a >= 1e6 ? num(v / 1e6, 2) + "M" : a >= 1e4 ? num(v / 1e3, 1) + "K" : num(v, a >= 100 ? 0 : 2);
+}
+function ago(ms) {
+  const s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+  return s < 60 ? s + "s" : s < 3600 ? Math.floor(s / 60) + "m" : s < 86400 ? Math.floor(s / 3600) + "h" : Math.floor(s / 86400) + "d";
+}
+function hhmm(ms) { return new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+function stamp(ms) { return new Date(ms).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }); }
+function words(s) { return s ? s.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().replace(/^./, c => c.toUpperCase()) : ""; }
+const baseOf = sym => (sym || "").split("-")[0];
+const quoteOf = sym => (sym || "").includes("-") ? sym.split("-").pop() : "";
+function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(raw))), n = raw / p; return (n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10) * p; }
+function zoneIcon(z, s = 12) {
+  const c = css((ZONES[z] || ZONES.ok).c);
+  const shape = { ok: `<circle cx="6" cy="6" r="5" fill="${c}"/>`, warning: `<path d="M6 1 11.5 11H.5Z" fill="${c}"/>`,
+    danger: `<path d="M6 0 12 6 6 12 0 6Z" fill="${c}"/>`, critical: `<rect x="1" y="1" width="10" height="10" rx="1.5" fill="${c}"/>`,
+    stale: `<circle cx="6" cy="6" r="4.5" fill="none" stroke="${c}" stroke-width="1.8"/>` }[z] || "";
+  return `<svg width="${s}" height="${s}" viewBox="0 0 12 12" aria-hidden="true">${shape}</svg>`;
+}
+function box(id) { const el = $(id); return { W: el.clientWidth, H: el.clientHeight }; }
+function showTip(tip, host, e, html) {
+  tip.innerHTML = html; tip.style.display = "block";
+  const r = host.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+  tip.style.left = Math.min(r.width - tip.offsetWidth - 4, Math.max(4, x + 14)) + "px";
+  tip.style.top = Math.max(4, Math.min(r.height - tip.offsetHeight - 4, y - tip.offsetHeight - 10)) + "px";
+}
+function emptyChart(svgId, boxId, text) {
+  const { W, H } = box(boxId), svg = $(svgId);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" fill="${css("--muted")}" font-size="13" ${FONT}>${esc(text)}</text>`;
+}
+function setPressed(group, btn) { group.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b === btn)); }
+
+// ---------------------------------------------------------------- state & routing
+let S = null, view = "positions", selected = null, lastOk = 0;
+let priceRange = 3600000, pnlRange = 0, mapRange = 0.1, mapMarket = null;
+let perf = null, liq = null, historyShown = 50;
+
+function route() {
+  const v = (location.hash || "#positions").slice(1);
+  view = ["positions", "performance", "market"].includes(v) ? v : "positions";
+  for (const n of ["positions", "performance", "market"]) $("view-" + n).hidden = n !== view;
+  document.querySelectorAll(".tabs a").forEach(a => a.dataset.view === view ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
+  if (view === "performance") loadPerf();
+  if (view === "market") loadMap();
+  draw();
+}
+window.addEventListener("hashchange", route);
+
+async function loadState() {
+  try {
+    S = await (await fetch("/api/state", { cache: "no-store" })).json();
+    lastOk = Date.now();
+    draw();
+  } catch (e) {
+    banner("The dashboard program isn't running. Start it again with start-dashboard.bat, then refresh.");
+    setLive("off", "Offline");
+  }
+}
+async function loadPerf() {
+  try { perf = await (await fetch("/api/performance", { cache: "no-store" })).json(); if (view === "performance" && S) drawPerformance(); } catch (e) {}
+}
+async function loadMap() {
+  try { liq = await (await fetch("/api/liqmap", { cache: "no-store" })).json(); if (view === "market" && S) drawMarket(); } catch (e) {}
+}
+function banner(text) { $("banner-text").textContent = text || ""; $("banner").classList.toggle("show", !!text); }
+function setLive(kind, text, title) { const el = $("live"); el.innerHTML = `<span class="dot ${kind}"></span><span>${esc(text)}</span>`; el.title = title || ""; }
+function updateLive() {
+  if (!S) return;
+  if (Date.now() - lastOk > 30000) return setLive("off", "Offline");
+  if (!S.status.ok && S.status.error) return setLive("off", "Reconnecting", S.status.error);
+  const t = S.status.last_success_ms;
+  setLive(t ? "on" : "", t ? "Live" : "Loading", t ? `Updated ${ago(t)} ago` : "");
+}
+
+function draw() {
+  if (!S) return;
+  updateLive();
+  banner(!S.status.ok && S.status.error ? "Can't reach REAL's API. Figures may be out of date." : "");
+  if (view === "positions") drawPositions();
+  if (view === "performance") drawPerformance();
+  if (view === "market") drawMarket();
+}
+
+const firstMarketId = () => Object.keys(S.markets)[0];
+const totals = key => { const v = S.accounts.map(a => a[key]).filter(ok); return v.length ? v.reduce((a, b) => a + b, 0) : null; };
+const unit = () => { const m = S && S.markets[firstMarketId()]; return m ? quoteOf(m.symbol) : ""; };
+const U = () => unit() ? `<small>${esc(unit())}</small>` : "";
+
+// ================================================================ POSITIONS
+function drawPositions() {
+  const eq = totals("equity"), up = totals("upnl"), used = (totals("margin_contracts") || 0) + (totals("margin_orders") || 0);
+  const notional = S.positions.reduce((a, p) => a + (p.notional || 0), 0);
+  $("k-equity").innerHTML = num(eq) + U();
+  $("k-available").innerHTML = num(totals("available")) + U();
+  $("k-upnl").innerHTML = `<span class="${cls(up)}">${sgn(up)}</span>${eq ? `<small>${spct(up / eq * 100)}</small>` : ""}`;
+  $("k-margin").innerHTML = eq ? pct(used / eq * 100, 1) : "–";
+  $("k-lev").innerHTML = eq ? num(notional / eq) + "<small>x</small>" : "–";
+
+  const ps = S.positions;
+  if (!ps.find(p => p.key === selected)) selected = ps[0] ? ps[0].key : null;
+  $("picker").innerHTML = ps.length < 2 ? "" : ps.map(p => `<button type="button" data-k="${esc(p.key)}" aria-pressed="${p.key === selected}">
+      ${zoneIcon(p.tier)}<span>${esc(p.symbol)} <span class="side ${p.direction}">${esc(p.direction)}</span>${S.accounts.length > 1 ? ` <span class="muted">${esc(p.account)}</span>` : ""}</span>
+      <span class="muted">${p.no_liq ? "no liq." : pct(p.distance)}</span></button>`).join("");
+  $("picker").querySelectorAll("button").forEach(b => b.onclick = () => { selected = b.dataset.k; drawPositions(); });
+
+  const p = ps.find(x => x.key === selected) || null;
+  const mk = S.markets[p ? p.market_id : firstMarketId()];
+  drawRisk(p, mk);
+  drawPrice(p, mk);
+  drawWhatIf(p, mk);
+  drawOrders();
+  drawFills();
+}
+
+function drawRisk(p, mk) {
+  const el = $("risk");
+  if (!p) {
+    el.innerHTML = `<div class="ph"><h2>Risk</h2></div><div class="empty">No open positions.</div>
+      <div class="kv">${mk ? `<div class="k">${esc(mk.symbol)} mark</div><div class="v">${px(mk.mark)}</div>` : ""}</div>`;
+    return;
+  }
+  const z = ZONES[p.tier] || ZONES.ok;
+  const big = p.no_liq ? `<span style="font-size:30px">No liq. price</span>` : ok(p.distance) ? `${num(p.distance)}<small>%</small>` : "–";
+  const move = p.liq ? p.liq - p.mark : null;
+  el.innerHTML = `
+    <div class="risk-top"><b>${esc(p.symbol)}</b><span class="side ${p.direction}">${esc(p.direction)}</span><span class="muted">${size(p.size)} ${esc(baseOf(p.symbol))}</span></div>
+    <div class="risk-mid">
+      <div><div class="muted" style="font-size:12px">Distance to liquidation</div>
+        <div class="big" style="color:${css(z.c)}">${big}</div>
+        <div class="zone" style="color:${css(z.c)}">${zoneIcon(p.tier)}${z.label}</div></div>
+      <svg class="gauge" id="gauge" role="img" aria-label="Distance to liquidation gauge"></svg>
+    </div>
+    <div class="kv">
+      <div class="k">Liquidation price</div><div class="v">${p.liq ? px(p.liq) : "None"}</div>
+      <div class="k">Move to liquidation</div><div class="v">${p.liq ? sgn(move) : "–"}</div>
+      <div class="k">Mark price</div><div class="v">${px(p.mark)}</div>
+      <div class="k">Entry price</div><div class="v">${px(p.entry)}</div>
+      <div class="k">Unrealised PnL</div><div class="v ${cls(p.upnl)}">${sgn(p.upnl)}</div>
+      <div class="k">Position value</div><div class="v">${num(p.notional)}</div>
+      <div class="k">Margin</div><div class="v">${num(p.margin)}</div>
+      <div class="k">Margin mode</div><div class="v">${esc(p.margin_mode)}${p.max_leverage ? `, ${num(p.max_leverage, 0)}x max` : ""}</div>
+    </div>`;
+  drawGauge(p);
+}
+
+function drawGauge(p) {
+  const svg = $("gauge"), th = S.thresholds, H = 150, W = 64, top = 6, bot = H - 6, bx = 36, bw = 10;
+  const d = p.no_liq ? Infinity : p.distance;
+  const max = Math.min(100, Math.max(th.warning * 2, ok(d) ? Math.ceil(d * 1.25 / 5) * 5 : th.warning * 2));
+  const liqTop = p.direction === "Short";
+  const y = v => { const k = Math.min(v, max) / max; return liqTop ? top + k * (bot - top) : bot - k * (bot - top); };
+  let g = "";
+  [["critical", 0, th.critical], ["danger", th.critical, th.danger], ["warning", th.danger, th.warning], ["ok", th.warning, max]].forEach(([z, a, b]) => {
+    const y1 = y(a), y2 = y(b);
+    g += `<rect x="${bx}" y="${Math.min(y1, y2) + 1}" width="${bw}" height="${Math.max(0, Math.abs(y2 - y1) - 2)}" rx="2" fill="${css(ZONES[z].c)}" opacity="${z === "ok" ? .35 : .9}"/>`;
+  });
+  [[0, "Liq."], [th.warning, num(th.warning, 0) + "%"], [max, num(max, 0) + "%"]].forEach(([v, t]) =>
+    g += `<text x="${bx - 6}" y="${y(v) + (v === 0 ? (liqTop ? 8 : -1) : v === max ? (liqTop ? -1 : 8) : 4)}" text-anchor="end" font-size="10.5" fill="${css("--muted")}" ${FONT}>${t}</text>`);
+  if (d != null) {
+    const my = isFinite(d) ? y(d) : (liqTop ? bot : top);
+    g += `<path d="M${bx + bw + 3},${my} l7,-5 v10 z" fill="${css("--ink")}"/><line x1="${bx - 2}" x2="${bx + bw + 2}" y1="${my}" y2="${my}" stroke="${css("--ink")}" stroke-width="2"/>`;
+  }
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  svg.innerHTML = g;
+}
+
+function drawPrice(p, mk) {
+  $("price-title").textContent = mk ? mk.symbol : "Price";
+  if (!mk || !mk.history || mk.history.length < 2) return emptyChart("price", "price-box", "Collecting price data");
+  const { W, H } = box("price-box"), svg = $("price");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  let pts = mk.history.filter(h => !priceRange || h[0] >= S.now_ms - priceRange);
+  if (pts.length < 2) pts = mk.history.slice(-2);
+  const m = { l: 4, r: 70, t: 12, b: 24 };
+  const x0 = pts[0][0], x1 = Math.max(pts[pts.length - 1][0], x0 + 1);
+  let lo = Math.min(...pts.map(q => q[1])), hi = Math.max(...pts.map(q => q[1]));
+  if (p && p.entry) { lo = Math.min(lo, p.entry); hi = Math.max(hi, p.entry); }
+  const pad = Math.max((hi - lo) * 0.15, hi * 0.001); lo -= pad; hi += pad;
+  if (p && p.liq) { const span = hi - lo; if (p.liq < lo && lo - p.liq < span * 0.6) lo = p.liq - span * 0.05; if (p.liq > hi && p.liq - hi < span * 0.6) hi = p.liq + span * 0.05; }
+  const sx = t => m.l + (t - x0) / (x1 - x0) * (W - m.l - m.r), sy = v => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+  const g = [], step = niceStep((hi - lo) / 5);
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+    g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${sy(v)}" y2="${sy(v)}" stroke="${css("--grid")}"/>`,
+           `<text x="${W - m.r + 8}" y="${sy(v) + 4}" font-size="11" fill="${css("--muted")}" ${FONT}>${px(v)}</text>`);
+  }
+  const nx = W < 500 ? 2 : 5;
+  for (let i = 0; i <= nx; i++) { const t = x0 + (x1 - x0) * i / nx;
+    g.push(`<text x="${sx(t)}" y="${H - 6}" font-size="11" fill="${css("--muted")}" text-anchor="${i === 0 ? "start" : i === nx ? "end" : "middle"}" ${FONT}>${hhmm(t)}</text>`); }
+  const legend = [`<span><svg width="16" height="4"><line x1="0" x2="16" y1="2" y2="2" stroke="${css("--accent")}" stroke-width="2"/></svg>Mark price</span>`];
+  if (p && p.entry) {
+    const ye = sy(p.entry);
+    g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${ye}" y2="${ye}" stroke="${css("--ink-2")}" stroke-dasharray="2 4"/>`);
+    legend.push(`<span><svg width="16" height="4"><line x1="0" x2="16" y1="2" y2="2" stroke="${css("--ink-2")}" stroke-dasharray="2 3"/></svg>Entry</span>`);
+  }
+  const line = pts.map((q, i) => `${i ? "L" : "M"}${sx(q[0]).toFixed(1)},${sy(q[1]).toFixed(1)}`).join("");
+  g.push(`<path d="${line}L${sx(pts[pts.length - 1][0]).toFixed(1)},${H - m.b}L${sx(x0).toFixed(1)},${H - m.b}Z" fill="${css("--accent")}" opacity=".07"/>`,
+         `<path d="${line}" fill="none" stroke="${css("--accent")}" stroke-width="2" stroke-linejoin="round"/>`);
+  const last = pts[pts.length - 1];
+  g.push(`<rect x="${W - m.r + 2}" y="${sy(last[1]) - 9}" width="${m.r - 2}" height="18" rx="3" fill="${css("--accent")}"/>`,
+         `<text x="${W - m.r / 2 + 1}" y="${sy(last[1]) + 4}" font-size="11" font-weight="600" text-anchor="middle" fill="#0f1a2c" ${FONT}>${px(last[1])}</text>`);
+  if (p && p.liq) {
+    const yl = sy(p.liq), c = css("--critical");
+    if (yl >= m.t && yl <= H - m.b) {
+      g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${yl}" y2="${yl}" stroke="${c}" stroke-width="1.5"/>`,
+             `<rect x="${W - m.r + 2}" y="${yl - 9}" width="${m.r - 2}" height="18" rx="3" fill="${c}"/>`,
+             `<text x="${W - m.r / 2 + 1}" y="${yl + 4}" font-size="11" font-weight="600" text-anchor="middle" fill="#2a0d0f" ${FONT}>${px(p.liq)}</text>`);
+    } else {
+      const above = yl < m.t, txt = `Liquidation ${px(p.liq)} (${spct((p.liq / last[1] - 1) * 100)})`;
+      g.push(`<text x="${W - m.r - 6}" y="${above ? m.t + 10 : H - m.b - 6}" text-anchor="end" font-size="11.5" fill="${c}" ${FONT}>${above ? "▲" : "▼"} ${esc(txt)}</text>`);
+    }
+    legend.push(`<span><svg width="16" height="4"><line x1="0" x2="16" y1="2" y2="2" stroke="${css("--critical")}" stroke-width="2"/></svg>Liquidation</span>`);
+  }
+  g.push(`<line id="pxh" y1="${m.t}" y2="${H - m.b}" stroke="${css("--ink-2")}" visibility="hidden"/>`,
+         `<circle id="pxd" r="4" fill="${css("--accent")}" stroke="${css("--panel")}" stroke-width="2" visibility="hidden"/>`,
+         `<rect id="phit" x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent"/>`);
+  svg.innerHTML = g.join("");
+  $("price-legend").innerHTML = legend.join("");
+  const hit = $("phit"), tip = $("price-tip");
+  hit.onmousemove = e => {
+    const r = svg.getBoundingClientRect(), mx = (e.clientX - r.left) * W / r.width, t = x0 + (mx - m.l) / (W - m.l - m.r) * (x1 - x0);
+    const q = pts[nearest(pts, t)], qx = sx(q[0]), qy = sy(q[1]);
+    $("pxh").setAttribute("x1", qx); $("pxh").setAttribute("x2", qx); $("pxh").setAttribute("visibility", "visible");
+    $("pxd").setAttribute("cx", qx); $("pxd").setAttribute("cy", qy); $("pxd").setAttribute("visibility", "visible");
+    const dist = p && p.liq ? (p.direction === "Long" ? (q[1] - p.liq) : (p.liq - q[1])) / q[1] * 100 : null;
+    showTip(tip, $("price-box"), e, `<div class="muted">${stamp(q[0])}</div><div class="n">${px(q[1])}</div>${ok(dist) ? `<div class="muted">${pct(Math.max(0, dist))} from liquidation</div>` : ""}`);
+  };
+  hit.onmouseleave = () => { tip.style.display = "none"; $("pxh").setAttribute("visibility", "hidden"); $("pxd").setAttribute("visibility", "hidden"); };
+}
+function nearest(pts, t) { let lo = 0, hi = pts.length - 1; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (pts[mid][0] < t) lo = mid; else hi = mid; } return Math.abs(pts[lo][0] - t) < Math.abs(pts[hi][0] - t) ? lo : hi; }
+
+// ---------------------------------------------------------------- what-if
+// Liquidation happens when collateral plus PnL from here equals maintenance margin:
+//   C + σ·s·(P − M) = m·s·P   so   P = (C − σ·s·M) / (s·(m − σ))
+// σ = +1 long / −1 short, C = equity (cross) or margin + uPnL (isolated), M = mark price.
+// m is calibrated so the current position reproduces REAL's own liquidation estimate.
+let wi = { key: null, price: null, size: null, add: 0, touched: false };
+let curModel = null, curPos = null;
+function model(p, mk) {
+  const sig = p.direction === "Long" ? 1 : -1, s = p.size, M = p.mark;
+  const C = p.margin_mode === "Isolated" ? (p.margin || 0) + (p.upnl || 0) : p.account_equity;
+  let m = mk && ok(mk.mmr) ? mk.mmr : 0.0125, calibrated = false;
+  if (p.liq && ok(C) && s > 0) { const mc = sig + (C - sig * s * M) / (s * p.liq); if (mc > 0 && mc < 0.5) { m = mc; calibrated = true; } }
+  return { sig, s, M, C, m, calibrated, mmr: mk && mk.mmr };
+}
+function liqAt(md, C, s) { if (!(s > 0) || !ok(C)) return null; const P = (C - md.sig * s * md.M) / (s * (md.m - md.sig)); return P > 0 ? P : null; }
+function distFrom(md, P, L) { return L ? md.sig * (P - L) / P * 100 : null; }
+
+function drawWhatIf(p, mk) {
+  const body = $("wi-body");
+  $("wi-reset").hidden = !p;
+  if (!p || !ok(p.mark) || !ok(p.size)) { body.innerHTML = `<div class="empty">Open a position to model price moves, size changes and margin.</div>`; wi.key = null; curPos = null; return; }
+  const md = model(p, mk);
+  if (!ok(md.C)) { body.innerHTML = `<div class="empty">Waiting for account data.</div>`; return; }
+  const q = quoteOf(p.symbol), b = baseOf(p.symbol);
+  if (wi.key !== p.key) wi = { key: p.key, price: p.mark, size: p.size, add: 0, touched: false };
+  if (!wi.touched) wi.price = p.mark;
+  if (!$("wi-price")) {
+    body.innerHTML = `
+      <div class="wi-inputs">
+        <div><label for="wi-price">Price</label><div class="inbox"><input id="wi-price" type="number" step="any"><span>${esc(q)}</span></div>
+          <input type="range" id="wi-price-r" min="-25" max="25" step="0.1" aria-label="Price change"></div>
+        <div><label for="wi-size">Position size</label><div class="inbox"><input id="wi-size" type="number" step="any" min="0"><span>${esc(b)}</span></div>
+          <input type="range" id="wi-size-r" min="0" max="300" step="1" aria-label="Size as percent of current"></div>
+        <div><label for="wi-add">Add or remove margin</label><div class="inbox"><input id="wi-add" type="number" step="any"><span>${esc(q)}</span></div>
+          <input type="range" id="wi-add-r" min="-100" max="100" step="1" aria-label="Margin change"></div>
+      </div>
+      <table><thead><tr><th></th><th class="r">Now</th><th class="r">Scenario</th><th class="r hide-sm">Change</th></tr></thead><tbody id="wi-rows"></tbody></table>
+      <div class="sub">Margin needed to move liquidation further away</div>
+      <table><thead><tr><th>Distance</th><th class="r">Liquidation price</th><th class="r">Add margin</th></tr></thead><tbody id="wi-need"></tbody></table>
+      <div class="wi-note" id="wi-note"></div>`;
+    const bind = (id, fn) => $(id).addEventListener("input", () => { fn(); wiCompute(); });
+    bind("wi-price", () => { wi.price = parseFloat($("wi-price").value); wi.touched = true; syncSliders(); });
+    bind("wi-price-r", () => { wi.price = curModel.M * (1 + $("wi-price-r").value / 100); wi.touched = true; syncInputs("price"); });
+    bind("wi-size", () => { wi.size = Math.max(0, parseFloat($("wi-size").value) || 0); syncSliders(); });
+    bind("wi-size-r", () => { wi.size = +(curModel.s * $("wi-size-r").value / 100).toFixed(8); syncInputs("size"); });
+    bind("wi-add", () => { wi.add = parseFloat($("wi-add").value) || 0; syncSliders(); });
+    bind("wi-add-r", () => { wi.add = Math.round(addScale() * $("wi-add-r").value) / 100; syncInputs("add"); });
+  }
+  curModel = md; curPos = p;
+  // Don't overwrite a field the user is typing in.
+  const focused = document.activeElement && document.activeElement.closest && document.activeElement.closest("#whatif");
+  if (!focused) { syncInputs("price"); syncInputs("size"); syncInputs("add"); }
+  wiCompute();
+}
+const addScale = () => Math.max(10, Math.abs(curModel.C) * 2);
+function syncInputs(which) {
+  if (which === "price") $("wi-price").value = +(+wi.price).toFixed(2);
+  if (which === "size") $("wi-size").value = size(wi.size);
+  if (which === "add") $("wi-add").value = wi.add;
+  syncSliders();
+}
+function syncSliders() {
+  if (!curModel) return;
+  $("wi-price-r").value = ((wi.price / curModel.M - 1) * 100).toFixed(1);
+  $("wi-size-r").value = curModel.s ? Math.round(wi.size / curModel.s * 100) : 100;
+  $("wi-add-r").value = Math.round(wi.add / addScale() * 100);
+}
+$("wi-reset").onclick = () => {
+  if (!curPos) return;
+  wi = { key: curPos.key, price: curPos.mark, size: curPos.size, add: 0, touched: false };
+  syncInputs("price"); syncInputs("size"); syncInputs("add"); wiCompute();
+};
+
+function wiCompute() {
+  const md = curModel, p = curPos; if (!md || !p || !$("wi-rows")) return;
+  const P = ok(wi.price) && wi.price > 0 ? wi.price : md.M, s2 = ok(wi.size) ? wi.size : md.s, C2 = md.C + (wi.add || 0);
+  const L0 = p.liq || liqAt(md, md.C, md.s), L1 = liqAt(md, C2, s2);
+  const eq0 = md.C, eq1 = C2 + md.sig * s2 * (P - md.M);
+  const d0 = distFrom(md, md.M, L0), d1 = s2 > 0 ? distFrom(md, P, L1) : null;
+  const lev0 = eq0 > 0 ? md.s * md.M / eq0 : null, lev1 = eq1 > 0 ? s2 * P / eq1 : null;
+  const pnl1 = md.sig * s2 * (P - md.M);
+  const liquidated = s2 > 0 && eq1 <= md.m * s2 * P;
+  const row = (label, a, b, fmt, diff) => `<tr><td>${label}</td><td class="num r">${fmt(a)}</td><td class="num r">${fmt(b)}</td><td class="num r muted hide-sm">${ok(a) && ok(b) ? diff(b - a) : "–"}</td></tr>`;
+  $("wi-rows").innerHTML =
+    row("Liquidation price", L0, s2 > 0 ? L1 : null, v => ok(v) ? px(v) : "None", d => sgn(d)) +
+    `<tr><td>Distance to liquidation</td><td class="num r">${ok(d0) ? pct(d0) : "–"}</td>
+       <td class="num r" style="${liquidated ? `color:${css("--critical")}` : ""}">${liquidated ? "Liquidated" : ok(d1) ? pct(Math.max(0, d1)) : s2 > 0 ? "None" : "–"}</td>
+       <td class="num r muted hide-sm">${ok(d0) && ok(d1) && !liquidated ? sgn(d1 - d0) + " pts" : "–"}</td></tr>` +
+    `<tr><td>PnL from current price</td><td class="num r">0.00</td><td class="num r ${cls(pnl1)}">${sgn(pnl1)}</td><td class="num r muted hide-sm">–</td></tr>` +
+    row("Equity", eq0, eq1, v => num(v), d => sgn(d)) +
+    row("Leverage", lev0, lev1, v => ok(v) ? num(v) + "x" : "–", d => sgn(d) + "x");
+
+  $("wi-need").innerHTML = [10, 20, 30, 50].map(d => {
+    const target = md.M * (1 - md.sig * d / 100);
+    if (!(target > 0) || !(s2 > 0)) return `<tr><td>${d}%</td><td class="num r">–</td><td class="num r">–</td></tr>`;
+    const add = md.sig * s2 * md.M + s2 * target * (md.m - md.sig) - md.C;
+    return `<tr><td>${d}%</td><td class="num r">${px(target)}</td><td class="num r">${add <= (wi.add || 0) + 1e-9 ? "Already there" : num(add) + " " + esc(quoteOf(p.symbol))}</td></tr>`;
+  }).join("");
+  const shared = p.margin_mode === "Cross" && S.positions.filter(x => x.account_id === p.account_id).length > 1;
+  $("wi-note").textContent = `Uses REAL's ${ok(md.mmr) ? num(md.mmr * 100, 2) + "% " : ""}maintenance margin${md.calibrated ? ", calibrated to REAL's current liquidation price" : ""}. ` +
+    `Size changes fill at the mark price. Excludes fees and funding.${shared ? " Other positions on this account are held constant." : ""}`;
+}
+
+function drawOrders() {
+  const o = S.orders;
+  if (!o.length) { $("orders").innerHTML = `<div class="empty">No open orders.</div>`; return; }
+  $("orders").innerHTML = `<table><thead><tr><th>Side</th><th>Type</th><th class="r">Price</th><th class="r">Filled</th><th class="r">Age</th></tr></thead><tbody>${
+    o.map(x => `<tr><td class="${x.side === "Buy" ? "gain" : "loss"}">${esc(x.side)}${x.reduce_only ? ` <span class="muted">reduce</span>` : ""}</td>
+      <td>${esc(words(x.type))}</td><td class="num r">${x.price ? px(x.price) : x.trigger ? "at " + px(x.trigger) : "Market"}</td>
+      <td class="num r">${size(x.filled)} / ${size(x.quantity)}</td><td class="r muted">${ago(x.t)}</td></tr>`).join("")}</tbody></table>`;
+}
+function drawFills() {
+  const f = S.fills;
+  if (!f.length) { $("fills").innerHTML = `<div class="empty">No trades yet.</div>`; return; }
+  $("fills").innerHTML = `<table><thead><tr><th>Action</th><th class="r">Price</th><th class="r">Size</th><th class="r">PnL</th><th class="r">Age</th></tr></thead><tbody>${
+    f.slice(0, 6).map(x => `<tr><td class="${x.direction === "Long" ? "gain" : "loss"}">${esc(words(x.context) || (x.direction === "Long" ? "Buy" : "Sell"))}</td>
+      <td class="num r">${px(x.price)}</td><td class="num r">${size(x.volume)}</td><td class="num r ${cls(x.pnl)}">${sgn(x.pnl, 4)}</td><td class="r muted">${ago(x.t)}</td></tr>`).join("")}</tbody></table>`;
+}
+
+// ================================================================ PERFORMANCE
+function drawPerformance() {
+  if (!perf || !perf.loaded) {
+    ["p-net", "p-trade", "p-fees", "p-funding", "p-volume", "p-win"].forEach(id => $(id).textContent = "–");
+    emptyChart("pnl", "pnl-box", "Loading trade history");
+    $("history").innerHTML = $("funding").innerHTML = `<div class="empty">Loading.</div>`;
+    return;
+  }
+  const F = perf.fills, Fu = perf.funding, sum = (a, k) => a.reduce((x, r) => x + (r[k] || 0), 0);
+  const tradePnl = sum(F, "trade_pnl"), fees = sum(F, "fee"), funding = sum(Fu, "payment"), net = sum(F, "pnl") + funding, vol = sum(F, "value");
+  const closes = F.filter(x => ok(x.trade_pnl) && Math.abs(x.trade_pnl) > 0), wins = closes.filter(x => x.trade_pnl > 0).length;
+  $("p-net").innerHTML = `<span class="${cls(net)}">${sgn(net)}</span>${U()}`;
+  $("p-trade").innerHTML = `<span class="${cls(tradePnl)}">${sgn(tradePnl)}</span>${U()}`;
+  $("p-fees").innerHTML = `<span class="${cls(fees)}">${sgn(fees)}</span>${U()}`;
+  $("p-funding").innerHTML = `<span class="${cls(funding)}">${sgn(funding, 4)}</span>${U()}`;
+  $("p-volume").innerHTML = compact(vol) + U();
+  $("p-win").innerHTML = closes.length ? `${pct(wins / closes.length * 100, 0)}<small>${wins} of ${closes.length}</small>` : "–";
+
+  const ev = F.map(x => [x.t, x.pnl || 0]).concat(Fu.map(x => [x.t, x.payment || 0])).filter(e => e[0]).sort((a, b) => a[0] - b[0]);
+  let run = 0;
+  drawPnlChart(ev.map(e => [e[0], run += e[1]]));
+
+  $("hist-count").textContent = F.length ? `${F.length}${perf.truncated ? "+" : ""} fills` : "";
+  $("history").innerHTML = !F.length ? `<div class="empty">No trades yet.</div>` :
+    `<table><thead><tr><th>Time</th><th>Action</th><th class="hide-sm">Order</th><th class="r">Price</th><th class="r">Size</th><th class="r hide-sm">Value</th><th class="r hide-sm">Fee</th><th class="r">PnL</th></tr></thead><tbody>${
+      F.slice(0, historyShown).map(x => `<tr><td class="muted">${stamp(x.t)}</td>
+        <td class="${x.direction === "Long" ? "gain" : "loss"}">${esc(words(x.context) || (x.direction === "Long" ? "Buy" : "Sell"))}${x.fill_type && x.fill_type !== "Normal" ? ` <span class="muted">${esc(words(x.fill_type))}</span>` : ""}</td>
+        <td class="hide-sm">${esc(words(x.order_type))} <span class="muted">${x.taker ? "taker" : "maker"}</span></td>
+        <td class="num r">${px(x.price)}</td><td class="num r">${size(x.volume)}</td><td class="num r hide-sm">${num(x.value)}</td>
+        <td class="num r hide-sm">${sgn(x.fee, 4)}</td><td class="num r ${cls(x.trade_pnl)}">${x.trade_pnl ? sgn(x.trade_pnl, 4) : "–"}</td></tr>`).join("")}</tbody></table>
+     ${F.length > historyShown ? `<button class="textbtn more" id="hist-more" type="button">Show ${Math.min(50, F.length - historyShown)} more</button>` : ""}`;
+  const more = $("hist-more"); if (more) more.onclick = () => { historyShown += 50; drawPerformance(); };
+
+  $("funding").innerHTML = !Fu.length ? `<div class="empty">No funding payments yet.</div>` :
+    `<div class="kv" style="margin-bottom:10px"><div class="k">Total</div><div class="v ${cls(funding)}">${sgn(funding, 4)}</div><div class="k">Payments</div><div class="v">${Fu.length}</div></div>
+     <table><thead><tr><th>Time</th><th class="r">Rate</th><th class="r">Position</th><th class="r">Payment</th></tr></thead><tbody>${
+      Fu.slice(0, 100).map(x => `<tr><td class="muted">${stamp(x.t)}</td><td class="num r">${spct((x.rate || 0) * 100, 4)}</td>
+        <td class="num r">${size(x.size)} <span class="muted">${esc(x.side || "")}</span></td><td class="num r ${cls(x.payment)}">${sgn(x.payment, 4)}</td></tr>`).join("")}</tbody></table>`;
+}
+
+function drawPnlChart(all) {
+  if (!all.length) return emptyChart("pnl", "pnl-box", "No realised PnL yet");
+  const now = Date.now(), from = pnlRange ? now - pnlRange : all[0][0] - 1;
+  const before = all.filter(e => e[0] < from), start = before.length ? before[before.length - 1][1] : 0;
+  const inRange = all.filter(e => e[0] >= from);
+  const pts = [[from, start], ...inRange, [now, inRange.length ? inRange[inRange.length - 1][1] : start]];
+  const { W, H } = box("pnl-box"), svg = $("pnl"), m = { l: 4, r: 64, t: 12, b: 24 };
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  let lo = Math.min(0, ...pts.map(p => p[1])), hi = Math.max(0, ...pts.map(p => p[1]));
+  const pad = Math.max((hi - lo) * 0.12, 0.01); lo -= pad; hi += pad;
+  const span = now - from;
+  const sx = t => m.l + (t - from) / span * (W - m.l - m.r), sy = v => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+  const g = [], step = niceStep((hi - lo) / 5);
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+    const zero = Math.abs(v) < step / 2;
+    g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${sy(v)}" y2="${sy(v)}" stroke="${css(zero ? "--muted" : "--grid")}" ${zero ? 'stroke-dasharray="3 3"' : ""}/>`,
+           `<text x="${W - m.r + 8}" y="${sy(v) + 4}" font-size="11" fill="${css("--muted")}" ${FONT}>${sgn(zero ? 0 : v, step < 1 ? 2 : 0)}</text>`);
+  }
+  const nx = W < 500 ? 2 : 5;
+  for (let i = 0; i <= nx; i++) { const t = from + span * i / nx;
+    g.push(`<text x="${sx(t)}" y="${H - 6}" font-size="11" fill="${css("--muted")}" text-anchor="${i === 0 ? "start" : i === nx ? "end" : "middle"}" ${FONT}>${span > 7 * 86400000 ? new Date(t).toLocaleDateString([], { month: "short", day: "numeric" }) : span > 86400000 ? stamp(t) : hhmm(t)}</text>`); }
+  let d = `M${sx(pts[0][0]).toFixed(1)},${sy(pts[0][1]).toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) d += `H${sx(pts[i][0]).toFixed(1)}V${sy(pts[i][1]).toFixed(1)}`;
+  const col = css(pts[pts.length - 1][1] >= 0 ? "--gain" : "--loss");
+  g.push(`<path d="${d}V${sy(0)}H${sx(pts[0][0])}Z" fill="${col}" opacity=".08"/>`, `<path d="${d}" fill="none" stroke="${col}" stroke-width="2"/>`,
+         `<line id="qh" y1="${m.t}" y2="${H - m.b}" stroke="${css("--ink-2")}" visibility="hidden"/>`,
+         `<rect id="qhit" x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent"/>`);
+  svg.innerHTML = g.join("");
+  const tip = $("pnl-tip");
+  $("qhit").onmousemove = e => {
+    const r = svg.getBoundingClientRect(), mx = (e.clientX - r.left) * W / r.width, t = from + (mx - m.l) / (W - m.l - m.r) * span;
+    let v = pts[0][1]; for (const q of pts) { if (q[0] <= t) v = q[1]; else break; }
+    $("qh").setAttribute("x1", mx); $("qh").setAttribute("x2", mx); $("qh").setAttribute("visibility", "visible");
+    showTip(tip, $("pnl-box"), e, `<div class="muted">${stamp(t)}</div><div class="n ${cls(v)}">${sgn(v)} ${esc(unit())}</div>`);
+  };
+  $("qhit").onmouseleave = () => { tip.style.display = "none"; $("qh").setAttribute("visibility", "hidden"); };
+}
+
+// ================================================================ MARKET
+function drawMarket() {
+  const mid = mapMarket && S.markets[mapMarket] ? mapMarket : firstMarketId();
+  const mk = S.markets[mid];
+  if (mk) {
+    const u = quoteOf(mk.symbol) ? `<small>${esc(quoteOf(mk.symbol))}</small>` : "";
+    $("m-mark").innerHTML = px(mk.mark);
+    $("m-change").innerHTML = `<span class="${cls(mk.change_24h)}">${ok(mk.change_24h) ? spct(mk.change_24h * 100) : "–"}</span>`;
+    $("m-range").innerHTML = `${num(mk.low_24h, 0)}–${num(mk.high_24h, 0)}`;
+    $("m-volume").innerHTML = compact(mk.turnover_24h) + u;
+    $("m-oi").innerHTML = compact(mk.open_interest_value) + u;
+    const until = mk.funding_time_ms ? Math.max(0, mk.funding_time_ms - Date.now()) : null;
+    $("m-funding").innerHTML = ok(mk.funding_rate) ? `${spct(mk.funding_rate * 100, 4)}<small id="m-fund-cd">${until != null ? countdown(until) : ""}</small>` : "–";
+  }
+  drawLiqMap();
+  drawDepth(mk);
+  drawImpact(mk);
+}
+function countdown(ms) { const s = Math.floor(ms / 1000); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; }
+
+function drawLiqMap() {
+  const d = liq;
+  if (!d) { emptyChart("map", "map-box", "Loading"); emptyChart("cum", "cum-box", ""); return; }
+  const mids = Object.keys(d.markets);
+  if (!mapMarket || !d.markets[mapMarket]) mapMarket = mids[0] || null;
+  const sel = $("map-market"); sel.hidden = mids.length < 2;
+  if (mids.length > 1) {
+    sel.innerHTML = mids.map(id => `<option value="${esc(id)}" ${id === mapMarket ? "selected" : ""}>${esc(d.markets[id].symbol)}</option>`).join("");
+    sel.onchange = () => { mapMarket = sel.value; drawMarket(); };
+  }
+  drawRecentLiqs(d.recent || []);
+  const m = mapMarket ? d.markets[mapMarket] : null, mark = mapMarket ? d.marks[mapMarket] : null;
+  if (!m || !mark) {
+    emptyChart("map", "map-box", d.error ? "Couldn't scan positions. Retrying." : "Scanning open positions. This takes up to a minute after starting.");
+    emptyChart("cum", "cum-box", "");
+    $("clusters").innerHTML = `<div class="empty">Waiting for the first scan.</div>`;
+    $("map-legend").innerHTML = $("map-note").innerHTML = "";
+    return;
+  }
+  const sym = m.symbol || "", q = quoteOf(sym);
+  $("map-title").innerHTML = `Liquidation levels <span>${esc(sym)}</span>`;
+  const pos = m.positions.map(([side, l, s]) => ({ side, liq: l, size: s, value: s * l }));
+  const mine = (d.mine || []).filter(x => x.market_id === mapMarket);
+  mapBars(pos, mark, mine, q);
+  mapCumulative(pos, mark, mine, sym);
+  $("map-legend").innerHTML = `<span><i class="sw" style="background:var(--long)"></i>Longs, liquidated as price falls</span>
+    <span><i class="sw" style="background:var(--short)"></i>Shorts, liquidated as price rises</span>
+    <span><svg width="10" height="12"><line x1="5" x2="5" y1="0" y2="12" stroke="${css("--ink-2")}" stroke-width="2"/></svg>Current price</span>
+    ${mine.length ? `<span><svg width="10" height="12"><line x1="5" x2="5" y1="0" y2="12" stroke="${css("--ink")}" stroke-width="2" stroke-dasharray="3 2"/></svg>Your liquidation price</span>` : ""}`;
+  const out = pos.filter(p => p.liq < mark * (1 - mapRange) || p.liq > mark * (1 + mapRange)).length;
+  const share = m.long_size + m.short_size ? m.long_size / (m.long_size + m.short_size) * 100 : null;
+  $("map-note").innerHTML = `<span>${m.open} open positions</span>${ok(share) ? `<span>${pct(share, 0)} long by size</span>` : ""}
+    <span>${m.no_liq} without a liquidation price</span><span>${out} outside this range</span><span>Scanned ${d.scanned_ms ? ago(d.scanned_ms) + " ago" : "–"}</span>`;
+  drawClusters(pos, mark, q);
+}
+function mapScale(id, mark, m) {
+  const { W, H } = box(id), lo = mark * (1 - mapRange), hi = mark * (1 + mapRange);
+  return { W, H, m, lo, hi, sx: v => m.l + (v - lo) / (hi - lo) * (W - m.l - m.r) };
+}
+function mapAxis(g, Sc, mark, withPct) {
+  const n = Sc.W < 500 ? 1 : 4;
+  for (let i = -n; i <= n; i++) {
+    const v = mark * (1 + mapRange * i / n), x = Sc.sx(v), a = i === -n ? "start" : i === n ? "end" : "middle";
+    g.push(`<text x="${x}" y="${Sc.H - (withPct ? 18 : 4)}" font-size="11" fill="${css("--muted")}" text-anchor="${a}" ${FONT}>${px(v)}</text>`);
+    if (withPct) g.push(`<text x="${x}" y="${Sc.H - 4}" font-size="11" fill="${css("--muted")}" text-anchor="${a}" ${FONT}>${i === 0 ? "now" : spct(mapRange * 100 * i / n, (mapRange * 100 / n) % 1 ? 1 : 0)}</text>`);
+  }
+}
+function mapMarkers(g, Sc, mark, mine) {
+  g.push(`<line x1="${Sc.sx(mark)}" x2="${Sc.sx(mark)}" y1="${Sc.m.t}" y2="${Sc.H - Sc.m.b}" stroke="${css("--ink-2")}" stroke-width="2"/>`);
+  mine.forEach(x => { if (x.liq >= Sc.lo && x.liq <= Sc.hi) g.push(`<line x1="${Sc.sx(x.liq)}" x2="${Sc.sx(x.liq)}" y1="${Sc.m.t}" y2="${Sc.H - Sc.m.b}" stroke="${css("--ink")}" stroke-width="2" stroke-dasharray="5 4"/>`); });
+}
+function topRound(x, y, w, h, r) { return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`; }
+function mapBars(pos, mark, mine, q) {
+  const Sc = mapScale("map-box", mark, { l: 4, r: 4, t: 22, b: 34 }), { W, H, m } = Sc, svg = $("map");
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const N = W < 600 ? 30 : 60, bw = (Sc.hi - Sc.lo) / N;
+  const B = Array.from({ length: N }, (_, i) => ({ a: Sc.lo + i * bw, b: Sc.lo + (i + 1) * bw, L: 0, S: 0, nl: 0, ns: 0 }));
+  pos.forEach(p => { if (p.liq < Sc.lo || p.liq >= Sc.hi) return; const k = B[Math.min(N - 1, Math.floor((p.liq - Sc.lo) / bw))];
+    if (p.side > 0) { k.L += p.value; k.nl++; } else { k.S += p.value; k.ns++; } });
+  const max = Math.max(1e-9, ...B.map(k => k.L + k.S)), sy = v => H - m.b - v / max * (H - m.t - m.b), g = [];
+  [0.5, 1].forEach(f => g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${sy(max * f)}" y2="${sy(max * f)}" stroke="${css("--grid")}"/>`,
+    `<text x="${m.l}" y="${sy(max * f) - 4}" font-size="11" fill="${css("--muted")}" ${FONT}>${compact(max * f)} ${esc(q)}</text>`));
+  g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}" stroke="${css("--line")}"/>`);
+  const cw = (W - m.l - m.r) / N, w = Math.max(1, cw - 2);
+  B.forEach((k, i) => { let y = H - m.b; const x = m.l + i * cw + 1;
+    [["L", "--long"], ["S", "--short"]].forEach(([key, c]) => { if (!k[key]) return; const h = Math.max(2, H - m.b - sy(k[key]));
+      g.push(`<path d="${topRound(x, y - h, w, h, Math.min(2.5, w / 2))}" fill="${css(c)}"/>`); y -= h + 2; }); });
+  mapAxis(g, Sc, mark, true);
+  mapMarkers(g, Sc, mark, mine);
+  g.push(`<text x="${Sc.sx(mark)}" y="${m.t - 8}" font-size="11.5" fill="${css("--ink")}" text-anchor="middle" ${FONT}>${px(mark)}</text>`);
+  mine.forEach(x => {
+    if (x.liq >= Sc.lo && x.liq <= Sc.hi) { const xx = Sc.sx(x.liq), right = xx < W * 0.75;
+      g.push(`<text x="${xx + (right ? 6 : -6)}" y="${m.t + 10}" font-size="11.5" fill="${css("--ink")}" text-anchor="${right ? "start" : "end"}" ${FONT}>You</text>`); }
+    else { const up = x.liq > Sc.hi;
+      g.push(`<text x="${up ? W - m.r : m.l}" y="${m.t + 10}" font-size="11.5" fill="${css("--ink")}" text-anchor="${up ? "end" : "start"}" ${FONT}>${up ? `Your liquidation ${px(x.liq)} ▶` : `◀ Your liquidation ${px(x.liq)}`}</text>`); }
+  });
+  B.forEach((k, i) => g.push(`<rect class="hit" data-i="${i}" x="${m.l + i * cw}" y="${m.t}" width="${cw}" height="${H - m.t - m.b}" fill="transparent"/>`));
+  svg.innerHTML = g.join("");
+  const tip = $("map-tip");
+  svg.querySelectorAll(".hit").forEach(r => {
+    r.onmousemove = e => { const k = B[+r.dataset.i], c = ((k.a + k.b) / 2 / mark - 1) * 100;
+      showTip(tip, $("map-box"), e, `<div class="muted">${px(k.a)} to ${px(k.b)} (${spct(c, 1)})</div>` +
+        (k.nl ? `<div><i class="sw" style="background:var(--long)"></i> Longs ${compact(k.L)} ${esc(q)} <span class="muted">${k.nl} pos.</span></div>` : "") +
+        (k.ns ? `<div><i class="sw" style="background:var(--short)"></i> Shorts ${compact(k.S)} ${esc(q)} <span class="muted">${k.ns} pos.</span></div>` : "") +
+        (!k.nl && !k.ns ? `<div class="muted">None</div>` : ""));
+      r.setAttribute("fill", "rgba(255,255,255,.04)"); };
+    r.onmouseleave = () => { tip.style.display = "none"; r.setAttribute("fill", "transparent"); };
+  });
+}
+function mapCumulative(pos, mark, mine, sym) {
+  const Sc = mapScale("cum-box", mark, { l: 4, r: 4, t: 8, b: 20 }), { W, H, m } = Sc, svg = $("cum"), q = quoteOf(sym);
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const longs = pos.filter(p => p.side > 0), shorts = pos.filter(p => p.side < 0);
+  const at = x => { let v = 0, n = 0; (x <= mark ? longs : shorts).forEach(p => { if (x <= mark ? p.liq >= x : p.liq <= x) { v += p.value; n++; } }); return [v, n]; };
+  const N = 120, xs = Array.from({ length: N + 1 }, (_, i) => Sc.lo + (Sc.hi - Sc.lo) * i / N), vs = xs.map(x => at(x)[0]);
+  const max = Math.max(1e-9, ...vs), sy = v => H - m.b - v / max * (H - m.t - m.b), g = [];
+  g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${sy(max)}" y2="${sy(max)}" stroke="${css("--grid")}"/>`,
+         `<text x="${Sc.sx(mark) + 6}" y="${sy(max) + 12}" font-size="11" fill="${css("--muted")}" ${FONT}>${compact(max)} ${esc(q)}</text>`,
+         `<line x1="${m.l}" x2="${W - m.r}" y1="${H - m.b}" y2="${H - m.b}" stroke="${css("--line")}"/>`);
+  [[Sc.lo, mark, "--long"], [mark, Sc.hi, "--short"]].forEach(([a, b, c]) => {
+    const pts = xs.map((x, i) => [x, vs[i]]).filter(([x]) => x >= a && x <= b); if (pts.length < 2) return;
+    const l = pts.map(([x, v], i) => `${i ? "L" : "M"}${Sc.sx(x).toFixed(1)},${sy(v).toFixed(1)}`).join("");
+    g.push(`<path d="${l}L${Sc.sx(pts[pts.length - 1][0]).toFixed(1)},${H - m.b}L${Sc.sx(pts[0][0]).toFixed(1)},${H - m.b}Z" fill="${css(c)}" opacity=".2"/>`,
+           `<path d="${l}" fill="none" stroke="${css(c)}" stroke-width="2"/>`);
+  });
+  mapAxis(g, Sc, mark, false);
+  mapMarkers(g, Sc, mark, mine);
+  g.push(`<line id="cxh" y1="${m.t}" y2="${H - m.b}" stroke="${css("--ink-2")}" visibility="hidden"/>`,
+         `<rect id="chit" x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent"/>`);
+  svg.innerHTML = g.join("");
+  const tip = $("cum-tip");
+  $("chit").onmousemove = e => {
+    const r = svg.getBoundingClientRect(), mx = (e.clientX - r.left) * W / r.width, x = Sc.lo + (mx - m.l) / (W - m.l - m.r) * (Sc.hi - Sc.lo), [v, n] = at(x);
+    $("cxh").setAttribute("x1", mx); $("cxh").setAttribute("x2", mx); $("cxh").setAttribute("visibility", "visible");
+    showTip(tip, $("cum-box"), e, `<div class="muted">${esc(baseOf(sym))} at ${px(x)} (${spct((x / mark - 1) * 100, 1)})</div>
+      <div><span class="n">${compact(v)}</span> ${esc(q)} of ${x <= mark ? "longs" : "shorts"} liquidated</div><div class="muted">${n} positions</div>`);
+  };
+  $("chit").onmouseleave = () => { tip.style.display = "none"; $("cxh").setAttribute("visibility", "hidden"); };
+}
+function drawClusters(pos, mark, q) {
+  const w = mark * 0.005, bands = new Map();
+  pos.forEach(p => { const k = Math.floor(p.liq / w) + ":" + p.side, b = bands.get(k) || { a: Math.floor(p.liq / w) * w, side: p.side, value: 0, n: 0 }; b.value += p.value; b.n++; bands.set(k, b); });
+  const top = [...bands.values()].sort((a, b) => b.value - a.value).slice(0, 8);
+  $("clusters").innerHTML = !top.length ? `<div class="empty">No liquidation prices found.</div>` :
+    `<table><thead><tr><th>Price range</th><th>Side</th><th class="r hide-sm">Positions</th><th class="r">Value</th><th class="r">From now</th></tr></thead><tbody>${
+      top.map(b => `<tr><td class="num">${px(b.a)} to ${px(b.a + w)}</td><td><i class="sw" style="background:var(${b.side > 0 ? "--long" : "--short"})"></i> ${b.side > 0 ? "Longs" : "Shorts"}</td>
+        <td class="num r hide-sm">${b.n}</td><td class="num r">${compact(b.value)} ${esc(q)}</td><td class="num r">${spct(((b.a + w / 2) / mark - 1) * 100, 1)}</td></tr>`).join("")}</tbody></table>`;
+}
+function drawRecentLiqs(list) {
+  const nice = { FullPosition: "Full", PartialPosition: "Partial", OrdersCancelledOnly: "Orders cancelled" };
+  $("recent-liqs").innerHTML = !list.length ? `<div class="empty">None recorded.</div>` :
+    `<table><thead><tr><th>Time</th><th>Market</th><th class="r">Size</th><th>Type</th></tr></thead><tbody>${
+      list.map(x => `<tr><td class="muted">${stamp(x.t)}</td><td>${esc(x.symbol)}</td><td class="num r">${size(x.size)}</td><td>${esc(nice[x.status] || words(x.status))}</td></tr>`).join("")}</tbody></table>`;
+}
+
+// ---------------------------------------------------------------- order book
+function drawDepth(mk) {
+  if (!mk || !mk.bids.length || !mk.asks.length) return emptyChart("depth", "depth-box", "No order book data");
+  const bids = [...mk.bids].sort((a, b) => b[0] - a[0]), asks = [...mk.asks].sort((a, b) => a[0] - b[0]);
+  const mid = (bids[0][0] + asks[0][0]) / 2;
+  const cum = side => { let c = 0; return side.map(([p, v]) => [p, c += v]); };
+  const cb = cum(bids), ca = cum(asks);
+  const span = Math.min(0.05, Math.max(mid - cb[cb.length - 1][0], ca[ca.length - 1][0] - mid) / mid * 1.05);
+  const lo = mid * (1 - span), hi = mid * (1 + span);
+  const vb = cb.filter(p => p[0] >= lo), va = ca.filter(p => p[0] <= hi);
+  const maxV = Math.max(vb.length ? vb[vb.length - 1][1] : 0, va.length ? va[va.length - 1][1] : 0, 1e-9);
+  const { W, H } = box("depth-box"), svg = $("depth"), m = { l: 4, r: 56, t: 10, b: 22 };
+  svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+  const sx = p => m.l + (p - lo) / (hi - lo) * (W - m.l - m.r), sy = v => H - m.b - v / maxV * (H - m.t - m.b), g = [];
+  const st = niceStep(maxV / 4);
+  for (let v = st; v <= maxV * 1.001; v += st) g.push(`<line x1="${m.l}" x2="${W - m.r}" y1="${sy(v)}" y2="${sy(v)}" stroke="${css("--grid")}"/>`,
+    `<text x="${W - m.r + 6}" y="${sy(v) + 4}" font-size="11" fill="${css("--muted")}" ${FONT}>${size(+v.toFixed(4))}${v + st > maxV * 1.001 ? " " + esc(baseOf(mk.symbol)) : ""}</text>`);
+  // Each side steps away from the mid price as cumulative size grows.
+  const side = (pts, edge, c) => {
+    if (!pts.length) return;
+    let d = `M${sx(pts[0][0]).toFixed(1)},${H - m.b}`;
+    pts.forEach(([p, v], i) => { if (i) d += `H${sx(p).toFixed(1)}`; d += `V${sy(v).toFixed(1)}`; });
+    d += `H${sx(edge).toFixed(1)}`;
+    g.push(`<path d="${d}V${H - m.b}Z" fill="${css(c)}" opacity=".22"/>`, `<path d="${d}" fill="none" stroke="${css(c)}" stroke-width="2"/>`);
+  };
+  side(vb, lo, "--long"); side(va, hi, "--short");
+  g.push(`<line x1="${sx(mid)}" x2="${sx(mid)}" y1="${m.t}" y2="${H - m.b}" stroke="${css("--ink-2")}" stroke-dasharray="3 3"/>`);
+  [lo, mid, hi].forEach((v, i) => g.push(`<text x="${sx(v)}" y="${H - 6}" font-size="11" fill="${css("--muted")}" text-anchor="${["start", "middle", "end"][i]}" ${FONT}>${px(v)}</text>`));
+  g.push(`<line id="dxh" y1="${m.t}" y2="${H - m.b}" stroke="${css("--ink-2")}" visibility="hidden"/>`,
+         `<rect id="dhit" x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent"/>`);
+  svg.innerHTML = g.join("");
+  const tip = $("depth-tip"), b = baseOf(mk.symbol);
+  $("dhit").onmousemove = e => {
+    const r = svg.getBoundingClientRect(), mx = (e.clientX - r.left) * W / r.width, p = lo + (mx - m.l) / (W - m.l - m.r) * (hi - lo);
+    const s = p < mid ? cb.filter(x => x[0] >= p) : ca.filter(x => x[0] <= p), v = s.length ? s[s.length - 1][1] : 0;
+    $("dxh").setAttribute("x1", mx); $("dxh").setAttribute("x2", mx); $("dxh").setAttribute("visibility", "visible");
+    showTip(tip, $("depth-box"), e, `<div class="muted">${px(p)} (${spct((p / mid - 1) * 100, 2)})</div><div><span class="n">${size(+v.toFixed(4))}</span> ${esc(b)} ${p < mid ? "bid" : "offered"} to here</div>`);
+  };
+  $("dhit").onmouseleave = () => { tip.style.display = "none"; $("dxh").setAttribute("visibility", "hidden"); };
+}
+// Average fill price for a market order that walks the book; null if the book runs out.
+function walk(levels, qty) { let left = qty, cost = 0; for (const [p, v] of levels) { const t = Math.min(left, v); cost += t * p; left -= t; if (left <= 1e-12) return cost / qty; } return null; }
+function drawImpact(mk) {
+  if (!mk || !mk.bids.length || !mk.asks.length) { $("book-stats").innerHTML = ""; $("impact").innerHTML = `<div class="empty">No order book data.</div>`; return; }
+  const bids = [...mk.bids].sort((a, b) => b[0] - a[0]), asks = [...mk.asks].sort((a, b) => a[0] - b[0]);
+  const bb = bids[0][0], ba = asks[0][0], mid = (bb + ba) / 2, b = baseOf(mk.symbol), q = quoteOf(mk.symbol);
+  const bidTot = bids.reduce((a, x) => a + x[1], 0), askTot = asks.reduce((a, x) => a + x[1], 0);
+  $("book-stats").innerHTML = `<div class="k">Best bid / ask</div><div class="v">${px(bb)} / ${px(ba)}</div>
+    <div class="k">Spread</div><div class="v">${num(ba - bb, 2)} <span class="muted">${pct((ba - bb) / mid * 100, 3)}</span></div>
+    <div class="k">Book depth</div><div class="v">${size(+bidTot.toFixed(4))} bid / ${size(+askTot.toFixed(4))} ask <span class="muted">${esc(b)}</span></div>
+    <div class="k">Taker fee</div><div class="v">${ok(mk.taker_fee) ? pct(mk.taker_fee * 100, 3) : "–"}</div>`;
+  const fee = mk.taker_fee || 0;
+  const sizes = [0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5].filter(s => s * mid >= (mk.min_order_value || 0));
+  const cell = (avg, s, dir) => {
+    if (!ok(avg)) return `<td class="r muted hide-sm"></td><td class="r muted">Book too thin</td>`;
+    const slip = dir * (avg / mid - 1) * 100, cost = (slip / 100 + fee) * s * mid;
+    return `<td class="num r hide-sm">${px(avg)}</td><td class="num r">${pct(slip + fee * 100, 3)} <span class="muted">${num(cost)}</span></td>`;
+  };
+  $("impact").innerHTML = `<table><thead><tr><th>Size</th><th class="r hide-sm">Buy avg</th><th class="r">Buy cost</th><th class="r hide-sm">Sell avg</th><th class="r">Sell cost</th></tr></thead><tbody>${
+    sizes.map(s => `<tr><td class="num">${size(s)} ${esc(b)} <span class="muted hide-sm">${compact(s * mid)}</span></td>${cell(walk(asks, s), s, 1)}${cell(walk(bids, s), s, -1)}</tr>`).join("")}</tbody></table>
+    <div class="wi-note">Cost is slippage from the mid price plus the taker fee, shown as a percentage and in ${esc(q)}.</div>`;
+}
+
+// ---------------------------------------------------------------- wiring
+function bindSeg(id, fn) { const g = $(id); g.querySelectorAll("button").forEach(b => b.onclick = () => { setPressed(g, b); fn(+b.dataset.v); }); }
+bindSeg("price-range", v => { priceRange = v; if (S) drawPositions(); });
+bindSeg("pnl-range", v => { pnlRange = v; if (S) drawPerformance(); });
+bindSeg("map-range", v => { mapRange = v; if (S) drawMarket(); });
+let resizeT; window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(draw, 120); });
+setInterval(() => {
+  updateLive();
+  const mk = S && S.markets[firstMarketId()], cd = $("m-fund-cd");
+  if (cd && mk && mk.funding_time_ms) cd.textContent = countdown(Math.max(0, mk.funding_time_ms - Date.now()));
+}, 1000);
+setInterval(loadState, 3000);
+setInterval(() => { if (view === "market") loadMap(); }, 15000);
+setInterval(() => { if (view === "performance") loadPerf(); }, 30000);
+route();
+loadState();
+</script>
+</body>
+</html>
